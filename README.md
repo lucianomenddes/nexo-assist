@@ -21,12 +21,12 @@ pnpm dev
 
 O comando `pnpm dev` inicia os três apps em modo de desenvolvimento via Turborepo:
 
-| Serviço             | URL                   | Health                          |
-| ------------------- | --------------------- | ------------------------------- |
-| Next.js web         | http://localhost:3000 | `/api/health`                   |
-| Mastra agent API    | http://localhost:4111 | `/health/live`, `/health/ready` |
-| Ticket Service      | http://localhost:4112 | `/health/live`, `/health/ready` |
-| PostgreSQL/pgvector | localhost:55432       | Docker health check             |
+| Serviço             | URL                   | Health                                                         |
+| ------------------- | --------------------- | -------------------------------------------------------------- |
+| Next.js web         | http://localhost:3000 | `/api/health`                                                  |
+| Mastra agent API    | http://localhost:4111 | `/health/live`, `/health/ready`                                |
+| Ticket Service      | http://localhost:4112 | `/health`, `/health/live`, `/health/ready`; Swagger em `/docs` |
+| PostgreSQL/pgvector | localhost:55432       | Docker health check                                            |
 
 O readiness dos serviços Fastify verifica a conexão real com PostgreSQL. A chave OpenAI é opcional para inicializar os serviços; será necessária quando a geração de respostas for ligada ao endpoint de chat.
 
@@ -83,6 +83,32 @@ packages/
 `.env.example` lista as variáveis para desenvolvimento. Copie-o para `.env`; valores de banco incluídos são somente credenciais locais de desenvolvimento. Nunca use esses valores em produção nem versiona `.env`.
 
 Variáveis são validadas no início dos serviços por `@nexo-assist/config`, com Zod. Falha de validação interrompe o startup e informa as variáveis inválidas.
+
+## Ticket Service
+
+O serviço Fastify oferece `GET /employees/me`, `GET /tickets`, `GET /tickets/search`,
+`GET /tickets/:id`, `POST /tickets`, `PATCH /tickets/:id` e
+`POST /tickets/:id/reopen`. A especificação OpenAPI e a interface Swagger ficam
+disponíveis em `http://localhost:4112/docs`.
+
+As rotas de negócio exigem um JWT assinado com HS256 e validado por issuer e
+audience configurados em `AUTH_JWT_ISSUER` e `AUTH_JWT_AUDIENCE`. Um token de
+funcionário usa o UUID do registro de funcionário em `sub` e `role: "employee"`.
+Tokens de serviço usam `role: "service"` e `employeeId` para representar o
+funcionário atendido; em ambos os casos o token deve ser emitido por um emissor
+confiável. O cliente nunca escolhe a identidade proprietária do chamado no body
+ou query. O exemplo local não inclui endpoint de emissão de tokens: a integração
+deve receber tokens do provedor de identidade/serviço confiável.
+
+Todas as escritas exigem `Idempotency-Key`. Atualizações também exigem
+`expectedVersion` no body para evitar sobrescrita concorrente. Escritas aceitam
+somente JWT `role: "service"` emitido para o backend confiável; o workflow do
+agente deve obter confirmação explícita antes de enviar a operação. JWTs de
+funcionário são somente leitura. A prioridade
+crítica usa uma hora corrida; as prioridades alta, média e baixa usam horas
+úteis de segunda a sexta, das 09:00 às 17:00 UTC. Esse calendário é uma
+assunção provisória de implementação: feriados e timezone operacional não estão
+definidos pelo PRD e devem ser confirmados antes do uso com SLA de produção.
 
 ## Mastra
 

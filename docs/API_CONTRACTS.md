@@ -5,11 +5,11 @@
 
 ## 1. Convenções
 
-- Prefixos: AI Backend `/api/v1`; Ticket Service interno `/internal/v1`.
+- Prefixos: AI Backend `/api/v1`; Ticket Service independente nas rotas raiz documentadas.
 - JSON UTF-8; datas ISO 8601 UTC; IDs opacos.
 - Schemas de entrada/saída compartilhados em `packages/contracts` e validados com Zod em cada fronteira.
 - Identidade (`subjectId`, `role`) vem da sessão autenticada ou credencial serviço-serviço; não do corpo da requisição.
-- Erros têm forma estável: `{ "error": { "code": "...", "message": "...", "requestId": "..." } }`.
+- Ticket Service retorna erros como `{ "error": "CODE", "message": "..." }`; validação também inclui `issues`.
 - Escritas recebem `Idempotency-Key`; reutilizar chave com corpo diferente retorna conflito.
 - Contratos não expõem tabelas Prisma nem dados secretos de execução.
 
@@ -110,20 +110,35 @@ A API confere identidade, conteúdo/hash e versão do draft, confirma que a inte
 
 Todas exigem papel analista. `takeover` retorna `409 HANDOFF_ALREADY_ASSIGNED` se outra pessoa venceu a corrida. Eventos SSE no console podem notificar atualização de fila e mensagem, mas não substituem o estado persistido.
 
-## 4. Ticket Service — serviço interno
+## 4. Ticket Service — serviço independente
 
-| Método e rota                                   | Uso                                            |
-| ----------------------------------------------- | ---------------------------------------------- |
-| `GET /health`                                   | Health check                                   |
-| `GET /internal/v1/employees/me`                 | Resolver empregado do principal validado       |
-| `GET /internal/v1/tickets`                      | Listar tickets do principal funcionário        |
-| `GET /internal/v1/tickets/{id}`                 | Obter ticket próprio                           |
-| `GET /internal/v1/tickets/duplicate-candidates` | Candidatos de duplicidade do mesmo funcionário |
-| `POST /internal/v1/tickets`                     | Criar após confirmação                         |
-| `PATCH /internal/v1/tickets/{id}`               | Atualizar ticket próprio após confirmação      |
-| `POST /internal/v1/tickets/{id}/reopen`         | Reabrir elegível, após confirmação             |
+| Método e rota               | Uso                                                 |
+| --------------------------- | --------------------------------------------------- |
+| `GET /health`               | Health check sem dependências                       |
+| `GET /health/live`          | Liveness probe                                      |
+| `GET /health/ready`         | Readiness probe com verificação PostgreSQL          |
+| `GET /employees/me`         | Perfil do funcionário autenticado                   |
+| `GET /tickets`              | Listar chamados próprios, com paginação opcional    |
+| `GET /tickets/search?q=...` | Buscar chamados próprios                            |
+| `GET /tickets/{id}`         | Obter chamado próprio e histórico                   |
+| `POST /tickets`             | Criar chamado ou atualizar chamado aberto duplicado |
+| `PATCH /tickets/{id}`       | Atualizar chamado próprio com controle de versão    |
+| `POST /tickets/{id}/reopen` | Reabrir chamado próprio elegível                    |
 
-Chamadas AI Backend → Ticket Service carregam credencial de serviço autenticada e o sujeito funcionário validado como contexto de acting-on-behalf-of. Nunca confiar em `employeeId` do modelo/front-end. Cada endpoint também valida ownership. Chamadas do console, se necessárias, usam identidade de analista autorizada e finalidade explícita.
+As rotas de negócio exigem JWT HS256 validado por issuer e audience. Para
+funcionário, o `sub` verificado é o UUID da identidade interna; tokens
+serviço-a-serviço usam `role: "service"` e `employeeId` como contexto
+acting-on-behalf-of. O ID de ownership nunca vem do corpo ou query do cliente.
+Todas as escritas exigem `Idempotency-Key`; atualizações exigem `expectedVersion`.
+Somente principal `role: "service"` pode escrever; o AI Backend chama essas
+rotas após validar a confirmação explícita do usuário. JWTs `role: "employee"`
+são somente leitura.
+Swagger UI e OpenAPI estão em `/docs` e `/docs/json`.
+
+A regra operacional atual calcula prioridade crítica como uma hora corrida e
+as demais prioridades em dias úteis de segunda a sexta, 09:00–17:00 UTC. É uma
+assunção técnica temporária, não requisito confirmado pelo PRD; calendário de
+feriados e timezone local devem ser definidos antes do SLA de produção.
 
 ### Criar ticket
 
@@ -134,12 +149,16 @@ Chamadas AI Backend → Ticket Service carregam credencial de serviço autentica
   "type": "INC",
   "category": "Rede e VPN",
   "priority": "Alta",
-  "affectedEmployeeId": "employee-id",
-  "confirmedDraftId": "draft-id"
+  "affectedEmployeeId": "employee-id"
 }
 ```
 
-`employeeId` de abertura é inferido da identidade verificada. O `confirmedDraftId` só é enviado pelo AI Backend autenticado depois de validar a confirmação explícita armazenada no servidor; o cliente não escolhe nem controla esse identificador de confirmação. O Ticket Service valida a identidade do serviço, os campos, o sujeito funcionário, status e duplicidade. `201` devolve `id`, `publicKey`, `status`, `priority`, `dueAt`, `createdAt`. A atualização requer campos permitidos e versão esperada para evitar sobrescrita; `409 VERSION_CONFLICT` solicita nova leitura/rascunho.
+O header `Idempotency-Key` é obrigatório. `employeeId` proprietário é inferido
+da identidade verificada; o campo opcional `affectedEmployeeId` não altera
+ownership. O Ticket Service valida os campos, ownership e duplicidade. `201`
+devolve o chamado criado; `200` indica que um chamado aberto duplicado foi
+atualizado. A atualização exige `expectedVersion`; `409 VERSION_CONFLICT`
+solicita nova leitura/rascunho.
 
 ### Consulta de duplicidade
 
@@ -147,16 +166,17 @@ Recebe categoria/tipo e descrição minimizada da intenção, mas aplica ownersh
 
 ## 5. Erros de domínio
 
-| HTTP          | Código                                                                                                     | Significado                                                                       |
-| ------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `400`         | `VALIDATION_ERROR`                                                                                         | Schema/formato inválido                                                           |
-| `401`         | `UNAUTHENTICATED`                                                                                          | Sessão ausente/inválida                                                           |
-| `403`         | `FORBIDDEN`                                                                                                | Papel/ação não autorizada                                                         |
-| `404`         | `NOT_FOUND`                                                                                                | Recurso inexistente ou não pertencente ao chamador                                |
-| `409`         | `CONFLICT`, `DUPLICATE_CANDIDATE`, `VERSION_CONFLICT`, `MESSAGE_LIMIT_REACHED`, `HANDOFF_ALREADY_ASSIGNED` | Conflito que exige intervenção                                                    |
-| `422`         | `CONFIRMATION_REQUIRED`, `DRAFT_STALE`, `REOPEN_WINDOW_EXPIRED`                                            | Estado/regra impede ação                                                          |
-| `429`         | `RATE_LIMITED`                                                                                             | Limite temporário                                                                 |
-| `502/503/504` | `TICKET_SERVICE_UNAVAILABLE`, `DEPENDENCY_TIMEOUT`                                                         | Falha de dependência; nenhuma garantia de escrita até consultar chave idempotente |
+| HTTP          | Código                                                                                                                                                                              | Significado                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `400`         | `VALIDATION_ERROR`                                                                                                                                                                  | Schema/formato inválido                                                           |
+| `401`         | `UNAUTHENTICATED`, `UNAUTHORIZED`                                                                                                                                                   | Sessão ausente/inválida                                                           |
+| `403`         | `FORBIDDEN`                                                                                                                                                                         | Papel/ação não autorizada                                                         |
+| `404`         | `NOT_FOUND`, `EMPLOYEE_NOT_FOUND`, `TICKET_NOT_FOUND`                                                                                                                               | Recurso inexistente ou não pertencente ao chamador                                |
+| `409`         | `CONFLICT`, `DUPLICATE_CANDIDATE`, `IDEMPOTENCY_CONFLICT`, `VERSION_CONFLICT`, `INVALID_TICKET_STATE`, `REOPEN_WINDOW_EXPIRED`, `MESSAGE_LIMIT_REACHED`, `HANDOFF_ALREADY_ASSIGNED` | Conflito que exige intervenção                                                    |
+| `422`         | `CONFIRMATION_REQUIRED`, `DRAFT_STALE`                                                                                                                                              | Estado/regra impede ação                                                          |
+| `429`         | `RATE_LIMITED`                                                                                                                                                                      | Limite temporário                                                                 |
+| `502/503/504` | `TICKET_SERVICE_UNAVAILABLE`, `DEPENDENCY_TIMEOUT`                                                                                                                                  | Falha de dependência; nenhuma garantia de escrita até consultar chave idempotente |
+| `500`         | `INTERNAL_SERVER_ERROR`                                                                                                                                                             | Falha inesperada; operação de escrita deve ser verificada pela mesma chave        |
 
 Retornar `404` para recurso de terceiro evita confirmar existência; auditoria interna pode registrar tentativa negada sem incluir conteúdo sensível.
 

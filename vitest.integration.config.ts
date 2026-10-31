@@ -5,8 +5,12 @@ export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   test: {
     environment: "node",
-    include: ["packages/database/src/**/*.integration.test.ts"],
+    include: [
+      "packages/database/src/**/*.integration.test.ts",
+      "apps/ticket-service/src/**/*.integration.test.ts",
+    ],
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    fileParallelism: false,
   },
 });

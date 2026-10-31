@@ -13,6 +13,12 @@ export const environmentSchema = z.object({
   DIRECT_URL: z.string().url().optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL: z.string().min(1).default("openai/gpt-4.1-mini"),
+  AUTH_JWT_SECRET: z
+    .string()
+    .min(32)
+    .default("nexo-assist-local-jwt-secret-change-before-deployment"),
+  AUTH_JWT_ISSUER: z.string().min(1).default("nexo-assist"),
+  AUTH_JWT_AUDIENCE: z.string().min(1).default("nexo-assist-api"),
   AGENT_PORT: z.coerce.number().int().min(1).max(65535).default(4111),
   TICKET_SERVICE_PORT: z.coerce.number().int().min(1).max(65535).default(4112),
 });
