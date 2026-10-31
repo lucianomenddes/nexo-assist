@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id                String         @id @default(uuid()) @db.Uuid
+  email             String         @unique
+  name              String
+  active            Boolean        @default(true)
+  conversations     Conversation[]
+  openedTickets     Ticket[]       @relation("TicketOpener")
+  affectedTickets   Ticket[]       @relation("TicketAffectedEmployee")
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+}
+
+model Conversation {
+  id        String    @id @default(uuid()) @db.Uuid
+  employeeId String   @db.Uuid
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  status    String    @default("active")
+  messages  Message[]
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([employeeId, updatedAt])
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sequence       Int
+  actorType      String
+  content        String       @db.Text
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@unique([conversationId, sequence])
+}
+
+model Ticket {
+  id                   String          @id @default(uuid()) @db.Uuid
+  publicKey            String          @unique
+  employeeId           String          @db.Uuid
+  employee             Employee        @relation("TicketOpener", fields: [employeeId], references: [id], onDelete: Restrict)
+  affectedEmployeeId   String          @db.Uuid
+  affectedEmployee     Employee        @relation("TicketAffectedEmployee", fields: [affectedEmployeeId], references: [id], onDelete: Restrict)
+  title                String
+  description          String          @db.Text
+  type                 String
+  category             String
+  priority             String
+  status               String          @default("open")
+  dueAt                DateTime?       @db.Timestamptz(3)
+  version              Int             @default(1)
+  history              TicketHistory[]
+  createdAt            DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@index([employeeId, status])
+  @@index([status, dueAt])
+}
+
+model TicketHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticketId  String   @db.Uuid
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  action    String
+  changes   Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([ticketId, createdAt])
+}
+
+model KnowledgeDocument {
+  id        String           @id @default(uuid()) @db.Uuid
+  source    String
+  title     String
+  version   Int
+  status    String           @default("draft")
+  contentHash String
+  chunks    KnowledgeChunk[]
+  updatedAt DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@unique([source, version])
+}
+
+model KnowledgeChunk {
+  id         String            @id @default(uuid()) @db.Uuid
+  documentId String            @db.Uuid
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  ordinal    Int
+  content    String            @db.Text
+  embedding  Unsupported("vector(1536)")?
+
+  @@unique([documentId, ordinal])
+}

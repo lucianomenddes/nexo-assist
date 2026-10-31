@@ -1,0 +1,31 @@
+{
+  "name": "@nexo-assist/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "db:generate": "node --env-file-if-exists=../../.env ./node_modules/prisma/build/index.js generate --schema prisma/schema.prisma",
+    "db:migrate": "node --env-file-if-exists=../../.env ./node_modules/prisma/build/index.js migrate dev --schema prisma/schema.prisma",
+    "db:deploy": "node --env-file-if-exists=../../.env ./node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma",
+    "build": "pnpm db:generate && tsc --project tsconfig.json",
+    "lint": "eslint --max-warnings 0 src",
+    "check-types": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nexo-assist/config": "workspace:*",
+    "@prisma/client": "6.19.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "26.4.1",
+    "eslint": "10.9.1",
+    "prisma": "6.19.0",
+    "typescript": "7.0.2"
+  }
+}

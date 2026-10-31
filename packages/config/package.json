@@ -1,0 +1,28 @@
+{
+  "name": "@nexo-assist/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "lint": "eslint --max-warnings 0 src",
+    "check-types": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --dir ."
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "26.4.1",
+    "eslint": "10.9.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.6"
+  }
+}

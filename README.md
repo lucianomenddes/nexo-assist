@@ -1,159 +1,96 @@
-# Turborepo starter
+# Nexo Assist
 
-This Turborepo starter is maintained by the Turborepo core team.
+Monorepo inicial do agente de Service Desk Nexo Assist. A aplicação Mastra tem o nome `nexo-assist-agent`; as APIs do agente e do serviço de chamados usam Fastify. O banco local é PostgreSQL com pgvector.
 
-## Using this example
+## Requisitos
 
-Run the following command:
+- Node.js 24 ou superior
+- pnpm 11.25.0
+- Docker e Docker Compose
 
-```sh
-npx create-turbo@latest
+## Preparação local
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm db:up
+pnpm db:migrate
+pnpm dev
 ```
 
-## What's inside?
+O comando `pnpm dev` inicia os três apps em modo de desenvolvimento via Turborepo:
 
-This Turborepo includes the following packages/apps:
+| Serviço             | URL                   | Health                          |
+| ------------------- | --------------------- | ------------------------------- |
+| Next.js web         | http://localhost:3000 | `/api/health`                   |
+| Mastra agent API    | http://localhost:4111 | `/health/live`, `/health/ready` |
+| Ticket Service      | http://localhost:4112 | `/health/live`, `/health/ready` |
+| PostgreSQL/pgvector | localhost:55432       | Docker health check             |
 
-### Apps and Packages
+O readiness dos serviços Fastify verifica a conexão real com PostgreSQL. A chave OpenAI é opcional para inicializar os serviços; será necessária quando a geração de respostas for ligada ao endpoint de chat.
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+Para encerrar os processos, use `Ctrl+C`; para parar o banco sem apagar os dados:
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```bash
+pnpm db:down
 ```
 
-Without global `turbo`, use your package manager:
+O volume `postgres_data` é persistente. O script `packages/database/docker/init.sql` habilita a extensão pgvector no primeiro provisionamento do volume; as migrations Prisma também garantem a extensão.
 
-```sh
-cd my-turborepo
-npx turbo build
-pnpm exec turbo build
-pnpm exec turbo build
+## Comandos úteis
+
+```bash
+pnpm dev                                  # inicia todos os apps do workspace
+pnpm exec turbo run dev --filter=web
+pnpm exec turbo run dev --filter=nexo-assist-agent
+pnpm exec turbo run dev --filter=@nexo-assist/ticket-service
+pnpm db:up                                # inicia PostgreSQL
+pnpm db:migrate                           # aplica migrations em desenvolvimento
+pnpm db:generate                          # gera Prisma Client
+pnpm build                                # build dos apps e packages
+pnpm check-types                          # verificação TypeScript
+pnpm lint                                 # ESLint
+pnpm test                                 # Vitest
+pnpm format:check                         # verifica formatação Prettier
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## Estrutura
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
+```text
+apps/
+  web/                 Next.js e endpoint de health
+  nexo-assist-agent/   agente Mastra e API Fastify
+  ticket-service/      serviço Fastify independente
+packages/
+  config/              validação Zod de ambiente
+  contracts/           schemas Zod compartilhados
+  database/            Prisma Client, schema e migrations
+  domain/              tipos e conceitos de domínio
+  shared/              utilitários compartilhados
+  eslint-config/       configuração compartilhada de ESLint
+  typescript-config/   bases TypeScript strict
 ```
 
-Without global `turbo`:
+`pnpm-workspace.yaml` inclui explicitamente os três apps executáveis e os pacotes internos. O antigo app `apps/docs` do starter não faz parte do workspace ativo.
 
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+## Configuração
 
-### Develop
+`.env.example` lista as variáveis para desenvolvimento. Copie-o para `.env`; valores de banco incluídos são somente credenciais locais de desenvolvimento. Nunca use esses valores em produção nem versiona `.env`.
 
-To develop all apps and packages, run the following command:
+Variáveis são validadas no início dos serviços por `@nexo-assist/config`, com Zod. Falha de validação interrompe o startup e informa as variáveis inválidas.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+## Mastra
 
-```sh
-cd my-turborepo
-turbo dev
-```
+O pacote `apps/nexo-assist-agent` é identificado como `nexo-assist-agent` e registra o agente `Nexo Assist` usando a API `Agent` de `@mastra/core`. O servidor HTTP é Fastify para manter consistência com a decisão de arquitetura; Mastra fornece a abstração do agente. O modelo usa o formato `provider/model` e a credencial OpenAI é fornecida via `OPENAI_API_KEY`.
 
-Without global `turbo`, use your package manager:
+## Qualidade
 
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
-```
+- ESLint usa a configuração compartilhada do monorepo.
+- Prettier usa configuração na raiz.
+- TypeScript herda configuração `strict`.
+- Vitest executa testes unitários e testes HTTP com `fastify.inject()`, sem abrir portas.
+- Os testes atuais validam schema de ambiente e health/readiness. Regras de chamados e fluxos de IA serão adicionados nas etapas seguintes.
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## Arquitetura e requisitos
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+Consulte [SDD](./docs/SDD.md), [Arquitetura](./docs/ARCHITECTURE.md), [Modelo de dados](./docs/DATA_MODEL.md), [Desenho do agente](./docs/AI_AGENT_DESIGN.md), [RAG](./docs/RAG_DESIGN.md), [Contratos de API](./docs/API_CONTRACTS.md) e [Roadmap](./docs/IMPLEMENTATION_ROADMAP.md). O [PRD](./PRD.md) é a fonte de requisitos do produto.

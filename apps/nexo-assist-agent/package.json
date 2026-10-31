@@ -1,32 +1,33 @@
 {
   "name": "nexo-assist-agent",
   "version": "1.0.0",
-  "description": "A general-purpose Mastra agent with a local workspace, shell tools, memory, task tracking, web access, and recurring schedules.",
-  "main": "index.js",
+  "description": "Mastra agent API for Nexo Assist.",
+  "main": "dist/server.js",
   "private": true,
   "scripts": {
-    "dev": "mastra dev",
-    "build": "mastra build",
-    "start": "mastra start"
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc --project tsconfig.json",
+    "start": "node --env-file-if-exists=../../.env dist/server.js",
+    "lint": "eslint --max-warnings 0 src",
+    "check-types": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --dir ."
   },
-  "keywords": [],
-  "author": "",
-  "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24"
   },
   "dependencies": {
     "@mastra/core": "1.80.0",
-    "@mastra/duckdb": "1.16.0",
-    "@mastra/libsql": "1.27.1",
-    "@mastra/memory": "1.39.1",
-    "@mastra/observability": "1.22.0",
-    "zod": "^4.4.3"
+    "@nexo-assist/config": "workspace:*",
+    "@nexo-assist/database": "workspace:*",
+    "fastify": "5.6.1"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "mastra": "1.36.0",
-    "typescript": "^6.0.3"
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "26.4.1",
+    "tsx": "4.20.6",
+    "typescript": "7.0.2",
+    "vitest": "4.1.6"
   }
 }

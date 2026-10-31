@@ -1,17 +1,28 @@
 {
   "name": "nexo-assist",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "check-types": "turbo run check-types",
+    "db:generate": "pnpm --filter @nexo-assist/database db:generate",
+    "db:migrate": "pnpm --filter @nexo-assist/database db:migrate",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose stop postgres",
+    "dev": "node --env-file-if-exists=.env ./node_modules/turbo/bin/turbo run dev",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
+    "lint": "turbo run lint",
+    "test": "turbo run test"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "eslint": "10.9.1",
+    "globals": "17.12.0",
     "prettier": "3.9.6",
     "turbo": "^2.11.10",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vitest": "4.1.6"
   },
   "packageManager": "pnpm@11.25.0",
   "engines": {
