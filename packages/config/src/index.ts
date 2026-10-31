@@ -13,6 +13,7 @@ export const environmentSchema = z.object({
   DIRECT_URL: z.string().url().optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL: z.string().min(1).default("openai/gpt-4.1-mini"),
+  TICKET_SERVICE_URL: z.string().url().default("http://localhost:4112"),
   AUTH_JWT_SECRET: z
     .string()
     .min(32)

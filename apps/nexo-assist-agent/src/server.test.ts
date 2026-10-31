@@ -42,4 +42,22 @@ describe("agent health endpoints", () => {
       dependencies: { database: "unavailable" },
     });
   });
+
+  it("requires authentication for conversation routes", async () => {
+    server = buildServer(async () => {}, {
+      auth: {
+        secret: "test-jwt-secret-with-at-least-32-characters",
+        issuer: "nexo-assist-test",
+        audience: "nexo-assist-test-api",
+      },
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/v1/conversations",
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ error: "UNAUTHORIZED" });
+  });
 });

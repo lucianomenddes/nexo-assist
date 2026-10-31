@@ -28,7 +28,7 @@ O comando `pnpm dev` inicia os três apps em modo de desenvolvimento via Turbore
 | Ticket Service      | http://localhost:4112 | `/health`, `/health/live`, `/health/ready`; Swagger em `/docs` |
 | PostgreSQL/pgvector | localhost:55432       | Docker health check                                            |
 
-O readiness dos serviços Fastify verifica a conexão real com PostgreSQL. A chave OpenAI é opcional para inicializar os serviços; será necessária quando a geração de respostas for ligada ao endpoint de chat.
+O readiness dos serviços Fastify verifica a conexão real com PostgreSQL. A chave OpenAI é opcional para inicializar os serviços, mas necessária para classificar mensagens, recuperar semanticamente a base e compor respostas.
 
 `DATABASE_URL` usa o papel de runtime sem superusuário; `DIRECT_URL` é reservado às migrations. As migrations ativam RLS nas tabelas de domínio e criam o schema `mastra_storage` separado do schema `public` gerenciado pelo Prisma. `NEXO_APP_PASSWORD` provisiona o papel local do Compose; em produção, configure credenciais distintas em um secret manager e use uma conexão privilegiada separada para migrations. As credenciais do `.env.example` são somente para desenvolvimento local.
 

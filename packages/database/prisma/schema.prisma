@@ -241,6 +241,7 @@ model Handoff {
   id                String        @id @default(uuid()) @db.Uuid
   employeeId        String        @db.Uuid
   conversationId    String        @db.Uuid
+  idempotencyKey    String?
   conversation      Conversation  @relation(fields: [conversationId, employeeId], references: [id, employeeId], onDelete: Cascade)
   status            HandoffStatus @default(pending)
   reason            String
@@ -253,6 +254,7 @@ model Handoff {
   createdAt         DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
 
+  @@unique([employeeId, idempotencyKey])
   @@index([employeeId, conversationId, status])
   @@index([status, requestedAt])
   @@index([assignedAnalystId, status])
