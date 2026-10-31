@@ -15,6 +15,7 @@ pnpm install
 cp .env.example .env
 pnpm db:up
 pnpm db:migrate
+pnpm db:seed
 pnpm dev
 ```
 
@@ -28,6 +29,8 @@ O comando `pnpm dev` inicia os três apps em modo de desenvolvimento via Turbore
 | PostgreSQL/pgvector | localhost:55432       | Docker health check             |
 
 O readiness dos serviços Fastify verifica a conexão real com PostgreSQL. A chave OpenAI é opcional para inicializar os serviços; será necessária quando a geração de respostas for ligada ao endpoint de chat.
+
+`DATABASE_URL` usa o papel de runtime sem superusuário; `DIRECT_URL` é reservado às migrations. As migrations ativam RLS nas tabelas de domínio e criam o schema `mastra_storage` separado do schema `public` gerenciado pelo Prisma. `NEXO_APP_PASSWORD` provisiona o papel local do Compose; em produção, configure credenciais distintas em um secret manager e use uma conexão privilegiada separada para migrations. As credenciais do `.env.example` são somente para desenvolvimento local.
 
 Para encerrar os processos, use `Ctrl+C`; para parar o banco sem apagar os dados:
 
@@ -46,11 +49,13 @@ pnpm exec turbo run dev --filter=nexo-assist-agent
 pnpm exec turbo run dev --filter=@nexo-assist/ticket-service
 pnpm db:up                                # inicia PostgreSQL
 pnpm db:migrate                           # aplica migrations em desenvolvimento
+pnpm db:seed                              # insere exemplos idempotentes
 pnpm db:generate                          # gera Prisma Client
 pnpm build                                # build dos apps e packages
 pnpm check-types                          # verificação TypeScript
 pnpm lint                                 # ESLint
 pnpm test                                 # Vitest
+pnpm test:integration                     # testes reais; requer PostgreSQL e migrations
 pnpm format:check                         # verifica formatação Prettier
 ```
 
@@ -81,7 +86,7 @@ Variáveis são validadas no início dos serviços por `@nexo-assist/config`, co
 
 ## Mastra
 
-O pacote `apps/nexo-assist-agent` é identificado como `nexo-assist-agent` e registra o agente `Nexo Assist` usando a API `Agent` de `@mastra/core`. O servidor HTTP é Fastify para manter consistência com a decisão de arquitetura; Mastra fornece a abstração do agente. O modelo usa o formato `provider/model` e a credencial OpenAI é fornecida via `OPENAI_API_KEY`.
+O pacote `apps/nexo-assist-agent` é identificado como `nexo-assist-agent` e registra o agente `Nexo Assist` usando a API `Agent` de `@mastra/core`. O storage PostgreSQL do Mastra usa o schema `mastra_storage`; tabelas de domínio Prisma permanecem no schema `public`. O servidor HTTP é Fastify para manter consistência com a decisão de arquitetura; Mastra fornece a abstração do agente. O modelo usa o formato `provider/model` e a credencial OpenAI é fornecida via `OPENAI_API_KEY`.
 
 ## Qualidade
 
@@ -89,7 +94,7 @@ O pacote `apps/nexo-assist-agent` é identificado como `nexo-assist-agent` e reg
 - Prettier usa configuração na raiz.
 - TypeScript herda configuração `strict`.
 - Vitest executa testes unitários e testes HTTP com `fastify.inject()`, sem abrir portas.
-- Os testes atuais validam schema de ambiente e health/readiness. Regras de chamados e fluxos de IA serão adicionados nas etapas seguintes.
+- `pnpm test:integration` usa PostgreSQL real para validar RLS, chaves estrangeiras compostas, idempotência e restrições de handoff. A URL de runtime de teste precisa usar o papel `nexo_app`, sem privilégios `SUPERUSER` ou `BYPASSRLS`.
 
 ## Arquitetura e requisitos
 

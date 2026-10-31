@@ -13,19 +13,23 @@
     "db:generate": "node --env-file-if-exists=../../.env ./node_modules/prisma/build/index.js generate --schema prisma/schema.prisma",
     "db:migrate": "node --env-file-if-exists=../../.env ./node_modules/prisma/build/index.js migrate dev --schema prisma/schema.prisma",
     "db:deploy": "node --env-file-if-exists=../../.env ./node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
     "build": "pnpm db:generate && tsc --project tsconfig.json",
     "lint": "eslint --max-warnings 0 src",
-    "check-types": "tsc --project tsconfig.json --noEmit"
+    "check-types": "tsc --project tsconfig.json --noEmit",
+    "test:integration": "node --env-file-if-exists=../../.env ../../node_modules/vitest/vitest.mjs run --config ../../vitest.integration.config.ts"
   },
   "dependencies": {
     "@nexo-assist/config": "workspace:*",
-    "@prisma/client": "6.19.0"
+    "@prisma/client": "6.19.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "26.4.1",
     "eslint": "10.9.1",
     "prisma": "6.19.0",
+    "tsx": "4.20.6",
     "typescript": "7.0.2"
   }
 }

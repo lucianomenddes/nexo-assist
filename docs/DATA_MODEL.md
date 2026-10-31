@@ -15,16 +15,16 @@
 
 | Entidade            | Campos principais                                                                                                                                                                     | Regras/índices                                                                                            |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `Employee`          | `id`, `email`, `name`, `department`, `active`, `createdAt`                                                                                                                            | `email` único normalizado; apenas registros seed no protótipo.                                            |
-| `Analyst`           | `id`, `email`, `name`, `active`                                                                                                                                                       | Papel distinto; no futuro vínculo com IdP/grupos.                                                         |
-| `Conversation`      | `id`, `employeeId`, `status`, `agentStatus`, `messageCount`, `createdAt`, `updatedAt`, `closedAt`                                                                                     | Índice por `(employeeId, updatedAt)`; sessão do funcionário.                                              |
-| `Message`           | `id`, `conversationId`, `sequence`, `actorType`, `actorId?`, `content`, `createdAt`, `metadata?`                                                                                      | Unique `(conversationId, sequence)`; conteúdo com retenção definida.                                      |
+| `Employee`          | `id`, `email`, `name`, `department?`, `active`, `createdAt`                                                                                                                           | Unique de email case-insensitive; RLS por `id`.                                                           |
+| `Analyst`           | `id`, `email`, `name`, `active`                                                                                                                                                       | Papel distinto; atribuições de handoff.                                                                   |
+| `Conversation`      | `id`, `employeeId`, `status`, `agentStatus`, `messageCount`, `createdAt`, `updatedAt`, `closedAt?`                                                                                    | Índice por `(employeeId, status, updatedAt)`; RLS e FK composta por funcionário.                          |
+| `Message`           | `id`, `employeeId`, `conversationId`, `sequence`, `actorType`, `actorId?`, `content`, `createdAt`, `metadata?`, `idempotencyKey?`                                                     | Unique `(conversationId, sequence)` e `(employeeId, idempotencyKey)`; FK composta e RLS.                  |
 | `Ticket`            | `id`, `publicKey`, `employeeId`, `affectedEmployeeId`, `title`, `description`, `type`, `category`, `priority`, `status`, `createdAt`, `updatedAt`, `resolvedAt?`, `dueAt?`, `version` | `publicKey` único; índices por proprietário/status e vencimento. `affectedEmployeeId` não concede acesso. |
-| `TicketHistory`     | `id`, `ticketId`, `actorType`, `actorId`, `action`, `changes`, `createdAt`, `idempotencyKey?`                                                                                         | Apêndice de auditoria; índices por ticket/data.                                                           |
-| `TicketIdempotency` | `key`, `operation`, `requestHash`, `ticketId?`, `response`, `createdAt`, `expiresAt?`                                                                                                 | Unique por chave/escopo; mesma chave com payload divergente é conflito.                                   |
-| `Handoff`           | `id`, `conversationId`, `status`, `reason`, `summary`, `requestedAt`, `assignedAnalystId?`, `assignedAt?`, `completedAt?`                                                             | No máximo um handoff ativo por conversa; atribuição concorrente atômica.                                  |
-| `AgentExecution`    | `id`, `conversationId`, `traceId`, `intent`, `status`, `confidence?`, `reason?`, `startedAt`, `completedAt?`, `model?`, `usage?`                                                      | Índices por conversa/tempo e `traceId`.                                                                   |
-| `AgentAudit`        | `id`, `executionId`, `eventType`, `toolName?`, `inputSummary?`, `outputSummary?`, `status`, `sourceRefs?`, `createdAt`                                                                | Eventos append-only; não incluir segredo ou chain-of-thought.                                             |
+| `TicketHistory`     | `id`, `employeeId`, `ticketId`, `actorType`, `actorId?`, `action`, `changes`, `createdAt`, `idempotencyKey?`, `requestHash?`                                                          | FK composta e RLS; unique de idempotência e índice por ticket/data.                                       |
+| `TicketIdempotency` | `id`, `employeeId`, `operation`, `key`, `requestHash`, `ticketId?`, `response?`, `createdAt`, `completedAt?`                                                                          | Unique `(employeeId, operation, key)`; mesma chave com payload divergente é conflito.                     |
+| `Handoff`           | `id`, `employeeId`, `conversationId`, `status`, `reason`, `summary`, `requestedAt`, `assignedAnalystId?`, `assignedAt?`, `completedAt?`                                               | FK composta e RLS; índice único parcial permite somente um handoff `pending`/`assigned` por conversa.     |
+| `AgentExecution`    | `id`, `employeeId`, `conversationId`, `traceId`, `intent`, `status`, `confidence?`, `reason?`, `startedAt`, `completedAt?`, `model?`, `usage?`                                        | FK composta e RLS; unique `(employeeId, traceId)` e índices por conversa/tempo.                           |
+| `AgentAudit`        | `id`, `employeeId`, `executionId`, `eventType`, `toolName?`, `inputSummary?`, `outputSummary?`, `status`, `sourceRefs?`, `createdAt`                                                  | FK composta e RLS; não incluir segredo ou chain-of-thought.                                               |
 | `KnowledgeDocument` | `id`, `source`, `title`, `category`, `version`, `status`, `platforms`, `tags`, `updatedAt`, `contentHash`                                                                             | Unique `(source, version)` ou chave equivalente; somente `published` recuperável.                         |
 | `KnowledgeChunk`    | `id`, `documentId`, `ordinal`, `content`, `tokenCount`, `embedding vector(1536)`, `metadata`                                                                                          | Unique `(documentId, ordinal)`; dimensão alinhada ao embedding escolhido.                                 |
 
@@ -48,6 +48,8 @@ erDiagram
     CONVERSATION ||--o{ HANDOFF : may_request
     ANALYST o|--o{ HANDOFF : assigned_to
     TICKET ||--o{ TICKET_HISTORY : records
+    EMPLOYEE ||--o{ TICKET_IDEMPOTENCY : scopes
+    TICKET o|--o{ TICKET_IDEMPOTENCY : replays
     AGENT_EXECUTION ||--o{ AGENT_AUDIT : emits
     KNOWLEDGE_DOCUMENT ||--|{ KNOWLEDGE_CHUNK : splits_into
 
@@ -86,6 +88,13 @@ erDiagram
         uuid conversationId FK
         uuid assignedAnalystId FK
         string status
+    }
+    TICKET_IDEMPOTENCY {
+        uuid id PK
+        uuid employeeId FK
+        string operation
+        string key
+        string requestHash
     }
     AGENT_EXECUTION {
         uuid id PK
@@ -160,6 +169,18 @@ Calendário, feriados, timezone, pausas por status e regra de atualização são
 6. Contador de mensagens do funcionário é atualizado atomicamente e não ultrapassa 30 por conversa.
 7. Handoff ativo impede nova execução de resposta do agente; mudanças de estado usam comparação/versionamento para prevenir corrida.
 8. Exclusão ou retenção de conteúdo segue política de privacidade definida antes de produção; logs técnicos evitam duplicar conteúdo integral.
+
+### Isolamento no PostgreSQL
+
+As tabelas de funcionário e dados de domínio associados (`Conversation`, `Message`, `Ticket`, `TicketHistory`, `TicketIdempotency`, `AgentExecution`, `AgentAudit` e `Handoff`) usam Row-Level Security com `FORCE ROW LEVEL SECURITY`. O papel de runtime não tem `SUPERUSER` nem `BYPASSRLS`. Cada transação acessa dados de funcionário por `withEmployeeScope`, que configura `app.employee_id` localmente à transação. Chaves estrangeiras compostas repetem `employeeId` nas relações privadas para impedir referências cruzadas entre funcionários. A identidade usada no escopo deve vir exclusivamente do contexto autenticado pelo backend.
+
+`DATABASE_URL` é a conexão de runtime; `DIRECT_URL` é a conexão privilegiada usada pelas migrations. O Prisma gerencia as tabelas de domínio no schema `public`. O `PostgresStore` do Mastra gerencia suas tabelas internas no schema `mastra_storage`; essas tabelas não são declaradas nem migradas pelo Prisma.
+
+### Idempotência e transações
+
+`createTicketIdempotently` calcula um SHA-256 do comando normalizado e grava ticket, primeira entrada de histórico e resultado idempotente na mesma transação. Uma repetição com a mesma chave e mesmo payload devolve o ticket existente; reutilizar a chave com payload diferente gera conflito. A restrição única continua sendo a autoridade em chamadas concorrentes. Mensagens também aceitam chave idempotente por funcionário, e `AgentExecution.traceId` é único no escopo do funcionário.
+
+`transitionConversation` valida as transições documentadas e atualiza estado/agente com comparação atômica de `(id, employeeId, expectedStatus)`, para rejeitar corridas. Checks no PostgreSQL impedem estados de espera com agente ativo e estados terminais sem agente concluído.
 
 ## 7. Migrations e índices
 

@@ -8,8 +8,9 @@ export const environmentSchema = z.object({
     .string()
     .url()
     .default(
-      "postgresql://nexo_assist:nexo_assist_dev@localhost:55432/nexo_assist?schema=public",
+      "postgresql://nexo_app:nexo_app_dev@localhost:55432/nexo_assist?schema=public",
     ),
+  DIRECT_URL: z.string().url().optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL: z.string().min(1).default("openai/gpt-4.1-mini"),
   AGENT_PORT: z.coerce.number().int().min(1).max(65535).default(4111),

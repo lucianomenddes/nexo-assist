@@ -4,7 +4,7 @@ import {
   checkDatabaseConnection,
   closeDatabaseConnection,
 } from "@nexo-assist/database";
-import { mastra } from "./mastra/index.js";
+import { mastra, mastraStorage } from "./mastra/index.js";
 
 type ReadinessCheck = () => Promise<void>;
 
@@ -36,7 +36,10 @@ export function buildServer(
     }
   });
 
-  server.addHook("onClose", closeDatabaseConnection);
+  server.addHook("onClose", async () => {
+    await mastraStorage.close();
+    await closeDatabaseConnection();
+  });
 
   return server;
 }
@@ -44,6 +47,7 @@ export function buildServer(
 async function main(): Promise<void> {
   const environment = loadEnvironment();
   void mastra;
+  await mastraStorage.init();
   const server = buildServer();
   await server.listen({ port: environment.AGENT_PORT, host: "0.0.0.0" });
 }

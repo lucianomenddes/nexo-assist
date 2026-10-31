@@ -114,16 +114,14 @@ A estrutura é uma decisão inicial, não requisito do PRD. Responsabilidades e 
 
 Um PostgreSQL local com extensão pgvector atende o protótipo. Schemas separados e credenciais por serviço limitam acoplamento:
 
-| Schema lógico  | Proprietário   | Conteúdo                                                       |
-| -------------- | -------------- | -------------------------------------------------------------- |
-| `tickets`      | Ticket Service | Funcionários demo, tickets, histórico, chaves de idempotência  |
-| `assistant`    | AI Backend     | Conversas, mensagens, estado de handoff, execuções e auditoria |
-| `knowledge`    | pipeline/RAG   | Documentos, chunks, embeddings, versão e metadados             |
-| storage Mastra | AI Backend     | Estado técnico de memória e workflows                          |
+| Schema físico    | Proprietário | Conteúdo                                                                    |
+| ---------------- | ------------ | --------------------------------------------------------------------------- |
+| `public`         | Prisma       | Tabelas de domínio: funcionário, conversa, ticket, execução, auditoria, RAG |
+| `mastra_storage` | Mastra       | Estado técnico de memória e workflows, gerenciado pelo `PostgresStore`      |
 
 Prisma é o ORM para dados de domínio; `@mastra/pg`/`PostgresStore` é a integração de storage do Mastra. Eles não devem compartilhar tabelas. A escolha de suporte de pgvector e SQL tipado deve ser validada contra as versões fixadas na implementação; SQL especializado fica encapsulado no repositório RAG.
 
-Todas as consultas de ticket incluem ownership no backend. Como defesa em profundidade, usar papéis de banco com privilégio mínimo e avaliar Row-Level Security na implantação; RLS não substitui autenticação nem autorização de aplicação.
+As tabelas de domínio privadas usam Row-Level Security forçada e FKs compostas com `employeeId`. O papel de runtime não tem `SUPERUSER` nem `BYPASSRLS`; o backend configura o contexto autenticado com `withEmployeeScope` em cada transação. RLS é defesa em profundidade e não substitui autenticação nem autorização de aplicação. `DIRECT_URL` é reservado às migrations.
 
 ## 5. Comunicação e fluxo
 

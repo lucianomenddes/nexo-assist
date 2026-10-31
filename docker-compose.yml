@@ -5,6 +5,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-nexo_assist}
       POSTGRES_USER: ${POSTGRES_USER:-nexo_assist}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexo_assist_dev}
+      NEXO_APP_PASSWORD: ${NEXO_APP_PASSWORD:-nexo_app_dev}
     ports:
       - "${POSTGRES_PORT:-55432}:5432"
     volumes:

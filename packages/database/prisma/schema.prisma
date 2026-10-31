@@ -3,100 +3,288 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ConversationStatus {
+  active
+  waiting_analyst
+  analyst_assigned
+  resolved
+  closed
+}
+
+enum AgentStatus {
+  active
+  paused
+  completed
+}
+
+enum MessageActorType {
+  employee
+  assistant
+  analyst
+  system
+}
+
+enum TicketType {
+  INC
+  REQ
+}
+
+enum TicketPriority {
+  critical
+  high
+  medium
+  low
+}
+
+enum TicketStatus {
+  open
+  awaiting_analyst
+  resolved
+  closed
+}
+
+enum ExecutionStatus {
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+enum AuditStatus {
+  started
+  succeeded
+  failed
+  skipped
+}
+
+enum HandoffStatus {
+  pending
+  assigned
+  returned
+  closed
+  cancelled
+}
+
+enum KnowledgeDocumentStatus {
+  draft
+  published
+  archived
 }
 
 model Employee {
-  id                String         @id @default(uuid()) @db.Uuid
-  email             String         @unique
+  id                String              @id @default(uuid()) @db.Uuid
+  email             String              @unique
   name              String
-  active            Boolean        @default(true)
+  department        String?
+  active            Boolean             @default(true)
   conversations     Conversation[]
-  openedTickets     Ticket[]       @relation("TicketOpener")
-  affectedTickets   Ticket[]       @relation("TicketAffectedEmployee")
-  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+  openedTickets     Ticket[]            @relation("TicketOpener")
+  affectedTickets   Ticket[]            @relation("TicketAffectedEmployee")
+  ticketIdempotency TicketIdempotency[]
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+
+  @@index([active, name])
+}
+
+model Analyst {
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String    @unique
+  name             String
+  active           Boolean   @default(true)
+  assignedHandoffs Handoff[]
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
 }
 
 model Conversation {
-  id        String    @id @default(uuid()) @db.Uuid
-  employeeId String   @db.Uuid
-  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  status    String    @default("active")
-  messages  Message[]
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  id           String             @id @default(uuid()) @db.Uuid
+  employeeId   String             @db.Uuid
+  employee     Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  status       ConversationStatus @default(active)
+  agentStatus  AgentStatus        @default(active)
+  messageCount Int                @default(0)
+  messages     Message[]
+  executions   AgentExecution[]
+  handoffs     Handoff[]
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
+  closedAt     DateTime?          @db.Timestamptz(3)
 
-  @@index([employeeId, updatedAt])
+  @@unique([id, employeeId])
+  @@index([employeeId, status, updatedAt])
 }
 
 model Message {
-  id             String       @id @default(uuid()) @db.Uuid
-  conversationId String       @db.Uuid
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  id             String           @id @default(uuid()) @db.Uuid
+  employeeId     String           @db.Uuid
+  conversationId String           @db.Uuid
+  conversation   Conversation     @relation(fields: [conversationId, employeeId], references: [id, employeeId], onDelete: Cascade)
   sequence       Int
-  actorType      String
-  content        String       @db.Text
-  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  actorType      MessageActorType
+  actorId        String?
+  content        String           @db.Text
+  metadata       Json?
+  idempotencyKey String?
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
 
   @@unique([conversationId, sequence])
+  @@unique([employeeId, idempotencyKey])
+  @@index([employeeId, conversationId, createdAt])
 }
 
 model Ticket {
-  id                   String          @id @default(uuid()) @db.Uuid
-  publicKey            String          @unique
-  employeeId           String          @db.Uuid
-  employee             Employee        @relation("TicketOpener", fields: [employeeId], references: [id], onDelete: Restrict)
-  affectedEmployeeId   String          @db.Uuid
-  affectedEmployee     Employee        @relation("TicketAffectedEmployee", fields: [affectedEmployeeId], references: [id], onDelete: Restrict)
-  title                String
-  description          String          @db.Text
-  type                 String
-  category             String
-  priority             String
-  status               String          @default("open")
-  dueAt                DateTime?       @db.Timestamptz(3)
-  version              Int             @default(1)
-  history              TicketHistory[]
-  createdAt            DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime        @updatedAt @db.Timestamptz(3)
+  id                 String              @id @default(uuid()) @db.Uuid
+  publicKey          String              @unique
+  employeeId         String              @db.Uuid
+  employee           Employee            @relation("TicketOpener", fields: [employeeId], references: [id], onDelete: Restrict)
+  affectedEmployeeId String              @db.Uuid
+  affectedEmployee   Employee            @relation("TicketAffectedEmployee", fields: [affectedEmployeeId], references: [id], onDelete: Restrict)
+  title              String
+  description        String              @db.Text
+  type               TicketType
+  category           String
+  priority           TicketPriority
+  status             TicketStatus        @default(open)
+  dueAt              DateTime?           @db.Timestamptz(3)
+  resolvedAt         DateTime?           @db.Timestamptz(3)
+  version            Int                 @default(1)
+  history            TicketHistory[]
+  idempotencyRecords TicketIdempotency[]
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
 
-  @@index([employeeId, status])
+  @@unique([id, employeeId])
+  @@index([employeeId, status, updatedAt])
   @@index([status, dueAt])
 }
 
 model TicketHistory {
-  id        String   @id @default(uuid()) @db.Uuid
-  ticketId  String   @db.Uuid
-  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  action    String
-  changes   Json
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  id             String           @id @default(uuid()) @db.Uuid
+  employeeId     String           @db.Uuid
+  ticketId       String           @db.Uuid
+  ticket         Ticket           @relation(fields: [ticketId, employeeId], references: [id, employeeId], onDelete: Cascade)
+  actorType      MessageActorType
+  actorId        String?
+  action         String
+  changes        Json
+  idempotencyKey String?
+  requestHash    String?
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
 
-  @@index([ticketId, createdAt])
+  @@unique([employeeId, idempotencyKey])
+  @@index([employeeId, ticketId, createdAt])
+}
+
+model TicketIdempotency {
+  id          String    @id @default(uuid()) @db.Uuid
+  employeeId  String    @db.Uuid
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  operation   String
+  key         String
+  requestHash String
+  ticketId    String?   @db.Uuid
+  ticket      Ticket?   @relation(fields: [ticketId, employeeId], references: [id, employeeId], onDelete: Restrict)
+  response    Json?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+
+  @@unique([employeeId, operation, key])
+  @@index([employeeId, createdAt])
+}
+
+model AgentExecution {
+  id             String          @id @default(uuid()) @db.Uuid
+  employeeId     String          @db.Uuid
+  conversationId String          @db.Uuid
+  conversation   Conversation    @relation(fields: [conversationId, employeeId], references: [id, employeeId], onDelete: Cascade)
+  traceId        String
+  intent         String
+  status         ExecutionStatus @default(running)
+  confidence     Float?
+  reason         String?
+  model          String?
+  usage          Json?
+  audits         AgentAudit[]
+  startedAt      DateTime        @default(now()) @db.Timestamptz(3)
+  completedAt    DateTime?       @db.Timestamptz(3)
+
+  @@unique([employeeId, traceId])
+  @@unique([id, employeeId])
+  @@index([employeeId, conversationId, startedAt])
+  @@index([status, startedAt])
+}
+
+model AgentAudit {
+  id            String         @id @default(uuid()) @db.Uuid
+  employeeId    String         @db.Uuid
+  executionId   String         @db.Uuid
+  execution     AgentExecution @relation(fields: [executionId, employeeId], references: [id, employeeId], onDelete: Cascade)
+  eventType     String
+  toolName      String?
+  inputSummary  String?        @db.Text
+  outputSummary String?        @db.Text
+  status        AuditStatus
+  sourceRefs    Json?
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([employeeId, executionId, createdAt])
+}
+
+model Handoff {
+  id                String        @id @default(uuid()) @db.Uuid
+  employeeId        String        @db.Uuid
+  conversationId    String        @db.Uuid
+  conversation      Conversation  @relation(fields: [conversationId, employeeId], references: [id, employeeId], onDelete: Cascade)
+  status            HandoffStatus @default(pending)
+  reason            String
+  summary           String        @db.Text
+  assignedAnalystId String?       @db.Uuid
+  assignedAnalyst   Analyst?      @relation(fields: [assignedAnalystId], references: [id], onDelete: SetNull)
+  requestedAt       DateTime      @default(now()) @db.Timestamptz(3)
+  assignedAt        DateTime?     @db.Timestamptz(3)
+  completedAt       DateTime?     @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@index([employeeId, conversationId, status])
+  @@index([status, requestedAt])
+  @@index([assignedAnalystId, status])
 }
 
 model KnowledgeDocument {
-  id        String           @id @default(uuid()) @db.Uuid
-  source    String
-  title     String
-  version   Int
-  status    String           @default("draft")
+  id          String                  @id @default(uuid()) @db.Uuid
+  source      String
+  title       String
+  category    String?
+  version     Int
+  status      KnowledgeDocumentStatus @default(draft)
+  platforms   String[]                @default([])
+  tags        String[]                @default([])
   contentHash String
-  chunks    KnowledgeChunk[]
-  updatedAt DateTime         @updatedAt @db.Timestamptz(3)
+  chunks      KnowledgeChunk[]
+  createdAt   DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                @updatedAt @db.Timestamptz(3)
 
   @@unique([source, version])
+  @@index([status, category])
 }
 
 model KnowledgeChunk {
-  id         String            @id @default(uuid()) @db.Uuid
-  documentId String            @db.Uuid
-  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id         String                       @id @default(uuid()) @db.Uuid
+  documentId String                       @db.Uuid
+  document   KnowledgeDocument            @relation(fields: [documentId], references: [id], onDelete: Cascade)
   ordinal    Int
-  content    String            @db.Text
+  content    String                       @db.Text
+  tokenCount Int?
+  metadata   Json?
   embedding  Unsupported("vector(1536)")?
 
   @@unique([documentId, ordinal])
+  @@index([documentId])
 }

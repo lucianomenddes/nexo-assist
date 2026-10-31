@@ -54,7 +54,7 @@ O documento é de arquitetura; não implementa código. Os detalhes funcionais v
 - **AI Backend:** interpreta mensagens, coordena workflows e conserva conversas/auditoria.
 - **Ticket Service:** autoridade para dados e regras de chamados.
 - **LLM e provedor de embeddings:** processadores externos de conteúdo enviado para inferência; não são fonte de verdade nem autoridade de autorização.
-- **PostgreSQL:** persistência transacional e vetorial, particionada logicamente por schemas e credenciais de serviço.
+- **PostgreSQL:** persistência transacional e vetorial; no protótipo, dados Prisma ficam no schema `public` e o storage interno do Mastra em `mastra_storage`, com papel de runtime de privilégio mínimo e RLS.
 
 ## 4. Visão de arquitetura
 
@@ -74,14 +74,12 @@ flowchart LR
     AI --> LLM["OpenAI"]
 ```
 
-Separação lógica sugerida no mesmo cluster PostgreSQL:
+Separação física no bootstrap e ownership lógico dos serviços:
 
-- Schema `tickets`: empregado de demonstração, chamados, histórico e idempotência; escrito pelo Ticket Service.
-- Schema `assistant`: conversas, mensagens, handoffs, execuções e auditoria; escrito pelo AI Backend.
-- Schema `knowledge`: documentos, chunks, metadados e embeddings; escrito pelo pipeline de conhecimento.
-- Schema dedicado ao storage do Mastra, sem compartilhar tabelas de domínio.
+- Schema `public`: tabelas de domínio administradas pelo Prisma neste protótipo; APIs continuam responsáveis pelos dados que possuem.
+- Schema `mastra_storage`: tabelas internas administradas pelo `PostgresStore`, sem compartilhar tabelas de domínio.
 
-Serviços mantêm clientes Prisma e permissões próprios. Um cluster compartilhado é uma simplificação para o protótipo, não uma autorização para consultar diretamente tabelas pertencentes a outro serviço.
+RLS e FKs compostas isolam dados por funcionário nas tabelas privadas. Separar schemas de domínio por serviço ou bancos físicos continua sendo uma opção de evolução, não uma exigência funcional do PRD.
 
 ## 5. Regras de negócio que não pertencem ao LLM
 

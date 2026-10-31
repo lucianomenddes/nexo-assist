@@ -8,3 +8,5 @@ allowBuilds:
   "@prisma/engines": true
   esbuild: true
   prisma: true
+minimumReleaseAgeExclude:
+  - '@mastra/pg@1.34.0'

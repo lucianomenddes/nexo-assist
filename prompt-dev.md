@@ -158,6 +158,7 @@ TypeScript
 Zod
 Prisma
 PostgreSQL
+Swegger 
 
 ENDPOINTS:
 GET /health
