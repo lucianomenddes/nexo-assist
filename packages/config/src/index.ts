@@ -15,6 +15,11 @@ export const environmentSchema = z.object({
   GROQ_MODEL: z.string().min(1).default("groq/openai/gpt-oss-20b"),
   OPENAI_API_KEY: z.string().min(1).optional(),
   TICKET_SERVICE_URL: z.string().url().default("http://localhost:4112"),
+  WEB_ORIGIN: z
+    .string()
+    .url()
+    .transform((value) => new URL(value).origin)
+    .default("http://localhost:3000"),
   AUTH_JWT_SECRET: z
     .string()
     .min(32)

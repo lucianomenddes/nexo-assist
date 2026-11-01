@@ -95,7 +95,11 @@ Acionado por pedido do funcionário, caso crítico, chamado vencido ou seguranç
 
 ### Atendimento por analista
 
-Console lista handoffs com filtros de status. Assumir usa operação condicional para impedir dois analistas de adquirir a mesma conversa. Enquanto atribuído, agente não responde a novas mensagens automáticas. Analista pode devolver ao agente ou encerrar; cada transição é auditada e exibida.
+O console em `/analyst` lista handoffs pendentes e atribuídos, exibe resumo factual, conversa e trilha de eventos, e permite assumir, responder, retomar o agente, resolver ou encerrar. A API fica em `/api/v1/analyst/handoffs`; exige JWT assinado pelo issuer/audience do backend com `role: analyst` e `sub` correspondente a um analista ativo.
+
+Estados válidos do handoff: `waiting_analyst → analyst_assigned → agent_resumed → resolved → closed`, com `analyst_assigned → resolved|closed`, `agent_resumed → closed` e `resolved → closed` também permitidos. A atribuição usa compare-and-set no banco e índice único parcial para impedir dois analistas simultâneos. Enquanto aguarda ou está atribuído, o agente pausa. Retomar altera o estado da conversa e libera novas respostas do agente. Cada solicitação, atribuição, mensagem e transição persiste ator, instante e motivo em `HandoffEvent`.
+
+O resumo é montado das mensagens recentes da conversa, com rótulos de autoria e sem inferências. Solicitação explícita, baixa confiança, chamado crítico e chamado vencido são encaminhados via draft confirmado pelo funcionário; após confirmação, o handoff é persistido e o agente é pausado. Falha de persistência não é apresentada como transferência concluída.
 
 ## 6. Confirmação e segurança de escrita
 

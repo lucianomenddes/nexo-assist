@@ -8,7 +8,7 @@ export {
   InvalidConversationTransitionError,
   transitionConversation,
 } from "./conversations.js";
-export { withEmployeeScope } from "./scope.js";
+export { withAnalystScope, withEmployeeScope } from "./scope.js";
 export {
   createTicketIdempotently,
   IdempotencyConflictError,

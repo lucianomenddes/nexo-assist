@@ -13,20 +13,21 @@
 
 ## 2. Entidades
 
-| Entidade            | Campos principais                                                                                                                                                                     | Regras/índices                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `Employee`          | `id`, `email`, `name`, `department?`, `active`, `createdAt`                                                                                                                           | Unique de email case-insensitive; RLS por `id`.                                                           |
-| `Analyst`           | `id`, `email`, `name`, `active`                                                                                                                                                       | Papel distinto; atribuições de handoff.                                                                   |
-| `Conversation`      | `id`, `employeeId`, `status`, `agentStatus`, `messageCount`, `createdAt`, `updatedAt`, `closedAt?`                                                                                    | Índice por `(employeeId, status, updatedAt)`; RLS e FK composta por funcionário.                          |
-| `Message`           | `id`, `employeeId`, `conversationId`, `sequence`, `actorType`, `actorId?`, `content`, `createdAt`, `metadata?`, `idempotencyKey?`                                                     | Unique `(conversationId, sequence)` e `(employeeId, idempotencyKey)`; FK composta e RLS.                  |
-| `Ticket`            | `id`, `publicKey`, `employeeId`, `affectedEmployeeId`, `title`, `description`, `type`, `category`, `priority`, `status`, `createdAt`, `updatedAt`, `resolvedAt?`, `dueAt?`, `version` | `publicKey` único; índices por proprietário/status e vencimento. `affectedEmployeeId` não concede acesso. |
-| `TicketHistory`     | `id`, `employeeId`, `ticketId`, `actorType`, `actorId?`, `action`, `changes`, `createdAt`, `idempotencyKey?`, `requestHash?`                                                          | FK composta e RLS; unique de idempotência e índice por ticket/data.                                       |
-| `TicketIdempotency` | `id`, `employeeId`, `operation`, `key`, `requestHash`, `ticketId?`, `response?`, `createdAt`, `completedAt?`                                                                          | Unique `(employeeId, operation, key)`; mesma chave com payload divergente é conflito.                     |
-| `Handoff`           | `id`, `employeeId`, `conversationId`, `status`, `reason`, `summary`, `requestedAt`, `assignedAnalystId?`, `assignedAt?`, `completedAt?`                                               | FK composta e RLS; índice único parcial permite somente um handoff `pending`/`assigned` por conversa.     |
-| `AgentExecution`    | `id`, `employeeId`, `conversationId`, `traceId`, `intent`, `status`, `confidence?`, `reason?`, `startedAt`, `completedAt?`, `model?`, `usage?`                                        | FK composta e RLS; unique `(employeeId, traceId)` e índices por conversa/tempo.                           |
-| `AgentAudit`        | `id`, `employeeId`, `executionId`, `eventType`, `toolName?`, `inputSummary?`, `outputSummary?`, `status`, `sourceRefs?`, `createdAt`                                                  | FK composta e RLS; não incluir segredo ou chain-of-thought.                                               |
-| `KnowledgeDocument` | `id`, `source`, `title`, `category`, `version`, `status`, `platforms`, `tags`, `updatedAt`, `contentHash`                                                                             | Unique `(source, version)` ou chave equivalente; somente `published` recuperável.                         |
-| `KnowledgeChunk`    | `id`, `documentId`, `ordinal`, `content`, `tokenCount`, `embedding vector(1536)`, `metadata`                                                                                          | Unique `(documentId, ordinal)`; dimensão alinhada ao embedding escolhido.                                 |
+| Entidade            | Campos principais                                                                                                                                                                     | Regras/índices                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `Employee`          | `id`, `email`, `name`, `department?`, `active`, `createdAt`                                                                                                                           | Unique de email case-insensitive; RLS por `id`.                                                                       |
+| `Analyst`           | `id`, `email`, `name`, `active`                                                                                                                                                       | Papel distinto; atribuições de handoff.                                                                               |
+| `Conversation`      | `id`, `employeeId`, `status`, `agentStatus`, `messageCount`, `createdAt`, `updatedAt`, `closedAt?`                                                                                    | Índice por `(employeeId, status, updatedAt)`; RLS e FK composta por funcionário.                                      |
+| `Message`           | `id`, `employeeId`, `conversationId`, `sequence`, `actorType`, `actorId?`, `content`, `createdAt`, `metadata?`, `idempotencyKey?`                                                     | Unique `(conversationId, sequence)` e `(employeeId, idempotencyKey)`; FK composta e RLS.                              |
+| `Ticket`            | `id`, `publicKey`, `employeeId`, `affectedEmployeeId`, `title`, `description`, `type`, `category`, `priority`, `status`, `createdAt`, `updatedAt`, `resolvedAt?`, `dueAt?`, `version` | `publicKey` único; índices por proprietário/status e vencimento. `affectedEmployeeId` não concede acesso.             |
+| `TicketHistory`     | `id`, `employeeId`, `ticketId`, `actorType`, `actorId?`, `action`, `changes`, `createdAt`, `idempotencyKey?`, `requestHash?`                                                          | FK composta e RLS; unique de idempotência e índice por ticket/data.                                                   |
+| `TicketIdempotency` | `id`, `employeeId`, `operation`, `key`, `requestHash`, `ticketId?`, `response?`, `createdAt`, `completedAt?`                                                                          | Unique `(employeeId, operation, key)`; mesma chave com payload divergente é conflito.                                 |
+| `Handoff`           | `id`, `employeeId`, `conversationId`, `status`, `reason`, `summary`, `requestedAt`, `assignedAnalystId?`, `assignedAt?`, `completedAt?`                                               | FK composta e RLS; índice único parcial permite somente um handoff `waiting_analyst`/`analyst_assigned` por conversa. |
+| `HandoffEvent`      | `id`, `employeeId`, `handoffId`, `action`, `actorType`, `actorId`, `reason`, `metadata?`, `createdAt`                                                                                 | Histórico imutável de operações; autoria, horário e motivo obrigatórios.                                              |
+| `AgentExecution`    | `id`, `employeeId`, `conversationId`, `traceId`, `intent`, `status`, `confidence?`, `reason?`, `startedAt`, `completedAt?`, `model?`, `usage?`                                        | FK composta e RLS; unique `(employeeId, traceId)` e índices por conversa/tempo.                                       |
+| `AgentAudit`        | `id`, `employeeId`, `executionId`, `eventType`, `toolName?`, `inputSummary?`, `outputSummary?`, `status`, `sourceRefs?`, `createdAt`                                                  | FK composta e RLS; não incluir segredo ou chain-of-thought.                                                           |
+| `KnowledgeDocument` | `id`, `source`, `title`, `category`, `version`, `status`, `platforms`, `tags`, `updatedAt`, `contentHash`                                                                             | Unique `(source, version)` ou chave equivalente; somente `published` recuperável.                                     |
+| `KnowledgeChunk`    | `id`, `documentId`, `ordinal`, `content`, `tokenCount`, `embedding vector(1536)`, `metadata`                                                                                          | Unique `(documentId, ordinal)`; dimensão alinhada ao embedding escolhido.                                             |
 
 ### Distinção de solicitante e afetado
 
@@ -140,18 +141,22 @@ erDiagram
 stateDiagram-v2
     [*] --> active
     active --> waiting_analyst: pedido/crítico/vencido/baixa segurança
-    waiting_analyst --> analyst_assigned: analista assume
-    analyst_assigned --> active: analista devolve ao agente
-    analyst_assigned --> resolved: analista resolve e encerra
-    active --> resolved: atendimento resolvido
+    waiting_analyst --> analyst_assigned: analista assume atomicamente
+    analyst_assigned --> agent_resumed: analista retoma o agente
+    analyst_assigned --> resolved: analista resolve
+    analyst_assigned --> closed: analista encerra
+    agent_resumed --> resolved: atendimento resolvido
+    agent_resumed --> closed: atendimento encerrado
+    agent_resumed --> waiting_analyst: novo pedido de transferência
     resolved --> closed: encerramento
+    active --> resolved: atendimento resolvido
     closed --> [*]
 ```
 
-`Conversation.status`: `active | waiting_analyst | analyst_assigned | resolved | closed`.  
+`Conversation.status`: `active | waiting_analyst | analyst_assigned | agent_resumed | resolved | closed`.
 `agentStatus`: `active | paused | completed`. `waiting_analyst` e `analyst_assigned` implicam `paused`; validação de domínio impede combinações inválidas. O agente só retoma por transição autorizada.
 
-`Handoff.status`: `pending | assigned | returned | closed | cancelled`. Cada transição registra analista, data e motivo.
+`Handoff.status`: `waiting_analyst | analyst_assigned | agent_resumed | resolved | closed`. Transições inválidas são rejeitadas no backend. A atribuição é uma atualização condicional atômica e o índice único parcial impede mais de um atendimento ativo por conversa. `HandoffEvent` registra ator, instante e motivo de cada solicitação, atribuição, mensagem e transição.
 
 ## 5. SLA e prioridade
 
@@ -172,7 +177,7 @@ Calendário, feriados, timezone, pausas por status e regra de atualização são
 
 ### Isolamento no PostgreSQL
 
-As tabelas de funcionário e dados de domínio associados (`Conversation`, `Message`, `Ticket`, `TicketHistory`, `TicketIdempotency`, `AgentExecution`, `AgentAudit` e `Handoff`) usam Row-Level Security com `FORCE ROW LEVEL SECURITY`. O papel de runtime não tem `SUPERUSER` nem `BYPASSRLS`. Cada transação acessa dados de funcionário por `withEmployeeScope`, que configura `app.employee_id` localmente à transação. Chaves estrangeiras compostas repetem `employeeId` nas relações privadas para impedir referências cruzadas entre funcionários. A identidade usada no escopo deve vir exclusivamente do contexto autenticado pelo backend.
+As tabelas de funcionário e dados de domínio associados (`Conversation`, `Message`, `Ticket`, `TicketHistory`, `TicketIdempotency`, `AgentExecution`, `AgentAudit`, `Handoff` e `HandoffEvent`) usam Row-Level Security com `FORCE ROW LEVEL SECURITY`. O papel de runtime não tem `SUPERUSER` nem `BYPASSRLS`. Cada transação de funcionário usa `withEmployeeScope`/`app.employee_id`; operações do console passam por políticas restritas a `withAnalystScope`/`app.analyst_id`, permitindo apenas a fila de handoffs e conversas associadas, e mensagens somente quando o analista está atribuído. Chaves estrangeiras compostas repetem `employeeId` nas relações privadas para impedir referências cruzadas entre funcionários. A identidade usada no escopo deve vir exclusivamente do contexto autenticado pelo backend.
 
 `DATABASE_URL` é a conexão de runtime; `DIRECT_URL` é a conexão privilegiada usada pelas migrations. O Prisma gerencia as tabelas de domínio no schema `public`. O `PostgresStore` do Mastra gerencia suas tabelas internas no schema `mastra_storage`; essas tabelas não são declaradas nem migradas pelo Prisma.
 

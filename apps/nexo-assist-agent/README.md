@@ -16,6 +16,19 @@ As rotas privadas exigem JWT HS256 com issuer/audience configurados, claim `role
 
 Configure `GROQ_API_KEY` e, opcionalmente, `GROQ_MODEL` para classificação, tool calling, avaliação e composição de respostas. O modelo padrão é `groq/openai/gpt-oss-20b`; `groq/openai/gpt-oss-120b` também está disponível. `OPENAI_API_KEY` permanece necessário para embeddings RAG (`text-embedding-3-small`), mantendo a dimensão de vetores já usada pelo índice. O catálogo de modelos Groq verificado não disponibiliza modelo de embeddings, e os modelos GPT-OSS são modelos de geração, não de embeddings. O agente combina busca semântica Mastra `PgVector` (HNSW, schema `mastra_storage`) com busca lexical PostgreSQL e fusão Reciprocal Rank Fusion. O filtro SQL valida novamente que cada chunk pertence a documento publicado e compatível com categoria, tags e plataforma; artigos sem restrição de plataforma só são combinados com artigos específicos da plataforma pedida. Sem plataforma identificada, apenas artigos gerais são elegíveis.
 
+## Console e workflow do analista
+
+O console web fica em `/analyst` e chama a API autenticada `/api/v1/analyst/handoffs`. Forneça um JWT com `role: "analyst"` e `sub` igual ao UUID de um analista ativo, assinado com `AUTH_JWT_SECRET` e os valores configurados de issuer/audience. O token é mantido somente na memória da página. Configure `WEB_ORIGIN` com a origem exata do console; o CORS não aceita origens curingas.
+
+O fluxo grava resumo factual construído com as mensagens recentes, motivo e eventos auditáveis. Estados suportados: `waiting_analyst`, `analyst_assigned`, `agent_resumed`, `resolved` e `closed`. O analista pode assumir atomicamente, enviar mensagens, retomar o agente, resolver ou encerrar. Handoffs solicitados pelo funcionário, motivados por baixa confiança, chamados críticos ou chamados vencidos passam pelo rascunho e confirmação explícita antes da persistência; enquanto aguardam ou estão atribuídos, o agente não gera respostas automáticas.
+
+Rotas do console:
+
+- `GET /api/v1/analyst/handoffs` e `GET /api/v1/analyst/handoffs/:handoffId`
+- `POST /api/v1/analyst/handoffs/:handoffId/assign` com `{ "reason": "..." }`
+- `POST /api/v1/analyst/handoffs/:handoffId/messages` com `{ "content": "..." }`
+- `POST /api/v1/analyst/handoffs/:handoffId/resume|resolve|close` com `{ "reason": "..." }`
+
 ## Ingestão de artigos
 
 O pipeline aceita Markdown, TXT, HTML e PDF; extrai texto localmente, normaliza espaços/Unicode, divide o conteúdo com `MDocument` (Markdown preserva cabeçalhos), gera vetores de 1536 dimensões com `text-embedding-3-small` e persiste os chunks de domínio e vetores Mastra. Chamados, mensagens e anexos privados não são entradas aceitas pelo fluxo do agente. A ingestão é uma operação administrativa via CLI, não uma tool disponível ao LLM.

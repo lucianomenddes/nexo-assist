@@ -7,6 +7,7 @@
     "GROQ_API_KEY",
     "GROQ_MODEL",
     "OPENAI_API_KEY",
+    "WEB_ORIGIN",
     "AUTH_JWT_SECRET",
     "AUTH_JWT_ISSUER",
     "AUTH_JWT_AUDIENCE",

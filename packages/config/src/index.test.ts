@@ -9,6 +9,7 @@ describe("loadEnvironment", () => {
     expect(environment.AGENT_PORT).toBe(4111);
     expect(environment.TICKET_SERVICE_PORT).toBe(4112);
     expect(environment.GROQ_MODEL).toBe("groq/openai/gpt-oss-20b");
+    expect(environment.WEB_ORIGIN).toBe("http://localhost:3000");
   });
 
   it("allows overriding the Groq model and API key", () => {

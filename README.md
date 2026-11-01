@@ -116,6 +116,8 @@ definidos pelo PRD e devem ser confirmados antes do uso com SLA de produção.
 
 O pacote `apps/nexo-assist-agent` é identificado como `nexo-assist-agent` e registra o agente `Nexo Assist` usando a API `Agent` de `@mastra/core`. O storage PostgreSQL do Mastra usa o schema `mastra_storage`; tabelas de domínio Prisma permanecem no schema `public`. O servidor HTTP é Fastify para manter consistência com a decisão de arquitetura; Mastra fornece a abstração do agente. A geração usa Groq via `GROQ_API_KEY` e `GROQ_MODEL` (padrão `groq/openai/gpt-oss-20b`); `OPENAI_API_KEY` permanece configurada para embeddings, pois os modelos GPT-OSS não fornecem vetores de embedding e o catálogo Groq atual não lista um modelo de embedding.
 
+O console de analistas está em `apps/web/app/analyst` e consome o workflow de handoff no agente. O backend valida estados e autoria; a atribuição usa compare-and-set e RLS de escopo analista. Consulte o [README do agente](./apps/nexo-assist-agent/README.md) para as rotas e configuração da origem web.
+
 A recuperação RAG combina `PgVector`/pgvector com busca lexical, usando somente artigos publicados e respeitando filtros de plataforma e metadados. Artigos TXT, Markdown, HTML e PDF são ingeridos pelo CLI administrativo; consulte [README do agente](./apps/nexo-assist-agent/README.md) e [desenho RAG](./docs/RAG_DESIGN.md) para manifestos e avaliação.
 
 ## Qualidade

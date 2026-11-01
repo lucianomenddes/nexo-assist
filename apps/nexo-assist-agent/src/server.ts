@@ -10,6 +10,7 @@ import {
 import {
   agentAuthConfig,
   AuthenticationError,
+  getAnalystId,
   getEmployeeId,
   registerEmployeeAuthentication,
 } from "./auth.js";
@@ -22,6 +23,12 @@ import {
   ConversationService,
   MessageLimitReachedError,
 } from "./services/conversation-service.js";
+import {
+  HandoffAccessError,
+  HandoffNotFoundError,
+  HandoffService,
+  InvalidHandoffTransitionError,
+} from "./services/handoff-service.js";
 import { mastra, mastraStorage } from "./mastra/index.js";
 import {
   closeKnowledgeVectorStore,
@@ -48,6 +55,15 @@ const idempotencyKeySchema = z.string().trim().min(8).max(128);
 const confirmationBodySchema = z.object({
   confirmation: z.literal("confirm"),
 });
+const handoffParamsSchema = z.object({
+  handoffId: z.string().uuid(),
+});
+const handoffReasonSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+const analystMessageSchema = z.object({
+  content: z.string().trim().min(1).max(10_000),
+});
 const errorSchema = {
   type: "object",
   additionalProperties: true,
@@ -60,6 +76,30 @@ export function buildServer(
   const server = Fastify({ logger: true });
   const conversationService =
     options.conversationService ?? new ConversationService();
+  const handoffService = new HandoffService();
+  const allowedWebOrigin = loadEnvironment().WEB_ORIGIN;
+  server.addHook("onRequest", async (request, reply) => {
+    const origin = request.headers.origin;
+    if (origin && origin === allowedWebOrigin) {
+      reply
+        .header("access-control-allow-origin", allowedWebOrigin)
+        .header("access-control-allow-credentials", "true")
+        .header("vary", "Origin");
+    }
+  });
+  server.options(
+    "/api/v1/*",
+    { config: { public: true } },
+    async (_request, reply) =>
+      reply
+        .header("access-control-allow-methods", "GET,POST,OPTIONS")
+        .header(
+          "access-control-allow-headers",
+          "authorization,content-type,idempotency-key",
+        )
+        .code(204)
+        .send(),
+  );
   registerEmployeeAuthentication(server, options.auth ?? agentAuthConfig());
 
   server.setErrorHandler((error: FastifyError | Error, request, reply) => {
@@ -67,6 +107,26 @@ export function buildServer(
       void reply
         .code(401)
         .send({ error: "UNAUTHORIZED", message: error.message });
+      return;
+    }
+    if (error instanceof HandoffNotFoundError) {
+      void reply.code(404).send({
+        error: "HANDOFF_NOT_FOUND",
+        message: error.message,
+      });
+      return;
+    }
+    if (
+      error instanceof HandoffAccessError ||
+      error instanceof InvalidHandoffTransitionError
+    ) {
+      void reply.code(409).send({
+        error:
+          error instanceof HandoffAccessError
+            ? "HANDOFF_NOT_ASSIGNED"
+            : "INVALID_HANDOFF_TRANSITION",
+        message: error.message,
+      });
       return;
     }
     if (error instanceof ZodError) {
@@ -155,6 +215,147 @@ export function buildServer(
       }
     },
   );
+
+  server.get(
+    "/api/v1/analyst/handoffs",
+    {
+      config: { analystOnly: true },
+      schema: {
+        tags: ["Analyst Console"],
+        summary: "List waiting and assigned analyst handoffs",
+        response: { 200: errorSchema },
+      },
+    },
+    async (request) => handoffService.listQueue(getAnalystId(request)),
+  );
+
+  server.get(
+    "/api/v1/analyst/handoffs/:handoffId",
+    {
+      config: { analystOnly: true },
+      schema: {
+        tags: ["Analyst Console"],
+        summary: "Get handoff summary, history, and conversation messages",
+        params: {
+          type: "object",
+          required: ["handoffId"],
+          properties: { handoffId: { type: "string", format: "uuid" } },
+        },
+        response: { 200: errorSchema },
+      },
+    },
+    async (request) =>
+      handoffService.getHandoff(
+        getAnalystId(request),
+        handoffParamsSchema.parse(request.params).handoffId,
+      ),
+  );
+
+  server.post(
+    "/api/v1/analyst/handoffs/:handoffId/assign",
+    {
+      config: { analystOnly: true },
+      schema: {
+        tags: ["Analyst Console"],
+        summary: "Atomically assign a waiting handoff to this analyst",
+        params: {
+          type: "object",
+          required: ["handoffId"],
+          properties: { handoffId: { type: "string", format: "uuid" } },
+        },
+        body: {
+          type: "object",
+          additionalProperties: false,
+          required: ["reason"],
+          properties: {
+            reason: { type: "string", minLength: 1, maxLength: 500 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      await handoffService.assign(
+        getAnalystId(request),
+        handoffParamsSchema.parse(request.params).handoffId,
+        handoffReasonSchema.parse(request.body).reason,
+      );
+      return reply.code(204).send();
+    },
+  );
+
+  server.post(
+    "/api/v1/analyst/handoffs/:handoffId/messages",
+    {
+      config: { analystOnly: true },
+      schema: {
+        tags: ["Analyst Console"],
+        summary: "Send an analyst-authored message in an assigned conversation",
+        params: {
+          type: "object",
+          required: ["handoffId"],
+          properties: { handoffId: { type: "string", format: "uuid" } },
+        },
+        body: {
+          type: "object",
+          additionalProperties: false,
+          required: ["content"],
+          properties: {
+            content: { type: "string", minLength: 1, maxLength: 10_000 },
+          },
+        },
+        response: { 201: errorSchema },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .code(201)
+        .send(
+          await handoffService.sendMessage(
+            getAnalystId(request),
+            handoffParamsSchema.parse(request.params).handoffId,
+            analystMessageSchema.parse(request.body).content,
+          ),
+        ),
+  );
+
+  for (const [action, status] of [
+    ["resume", "agent_resumed"],
+    ["resolve", "resolved"],
+    ["close", "closed"],
+  ] as const) {
+    server.post(
+      `/api/v1/analyst/handoffs/:handoffId/${action}`,
+      {
+        config: { analystOnly: true },
+        schema: {
+          tags: ["Analyst Console"],
+          summary: `${action} an assigned analyst handoff`,
+          params: {
+            type: "object",
+            required: ["handoffId"],
+            properties: { handoffId: { type: "string", format: "uuid" } },
+          },
+          body: {
+            type: "object",
+            additionalProperties: false,
+            required: ["reason"],
+            properties: {
+              reason: { type: "string", minLength: 1, maxLength: 500 },
+            },
+          },
+        },
+      },
+      async (request, reply) => {
+        await handoffService.transition(
+          getAnalystId(request),
+          handoffParamsSchema.parse(request.params).handoffId,
+          status,
+          handoffReasonSchema.parse(request.body).reason,
+        );
+        return reply.code(204).send();
+      },
+    );
+  }
 
   server.post(
     "/api/v1/conversations",

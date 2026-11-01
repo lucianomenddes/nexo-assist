@@ -9,13 +9,16 @@ const allowedTransitions: Record<
     ConversationStatus.waiting_analyst,
     ConversationStatus.resolved,
   ],
-  [ConversationStatus.waiting_analyst]: [
-    ConversationStatus.analyst_assigned,
-    ConversationStatus.active,
-  ],
+  [ConversationStatus.waiting_analyst]: [ConversationStatus.analyst_assigned],
   [ConversationStatus.analyst_assigned]: [
-    ConversationStatus.active,
+    ConversationStatus.agent_resumed,
     ConversationStatus.resolved,
+    ConversationStatus.closed,
+  ],
+  [ConversationStatus.agent_resumed]: [
+    ConversationStatus.waiting_analyst,
+    ConversationStatus.resolved,
+    ConversationStatus.closed,
   ],
   [ConversationStatus.resolved]: [ConversationStatus.closed],
   [ConversationStatus.closed]: [],
@@ -25,6 +28,7 @@ const agentStatusByConversation: Record<ConversationStatus, AgentStatus> = {
   [ConversationStatus.active]: AgentStatus.active,
   [ConversationStatus.waiting_analyst]: AgentStatus.paused,
   [ConversationStatus.analyst_assigned]: AgentStatus.paused,
+  [ConversationStatus.agent_resumed]: AgentStatus.active,
   [ConversationStatus.resolved]: AgentStatus.completed,
   [ConversationStatus.closed]: AgentStatus.completed,
 };

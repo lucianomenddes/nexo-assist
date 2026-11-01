@@ -12,6 +12,7 @@ enum ConversationStatus {
   active
   waiting_analyst
   analyst_assigned
+  agent_resumed
   resolved
   closed
 }
@@ -63,11 +64,18 @@ enum AuditStatus {
 }
 
 enum HandoffStatus {
-  pending
-  assigned
-  returned
+  waiting_analyst
+  analyst_assigned
+  agent_resumed
+  resolved
   closed
-  cancelled
+}
+
+enum HandoffActorType {
+  employee
+  analyst
+  assistant
+  system
 }
 
 enum KnowledgeDocumentStatus {
@@ -238,26 +246,43 @@ model AgentAudit {
 }
 
 model Handoff {
-  id                String        @id @default(uuid()) @db.Uuid
-  employeeId        String        @db.Uuid
-  conversationId    String        @db.Uuid
+  id                String         @id @default(uuid()) @db.Uuid
+  employeeId        String         @db.Uuid
+  conversationId    String         @db.Uuid
   idempotencyKey    String?
-  conversation      Conversation  @relation(fields: [conversationId, employeeId], references: [id, employeeId], onDelete: Cascade)
-  status            HandoffStatus @default(pending)
+  conversation      Conversation   @relation(fields: [conversationId, employeeId], references: [id, employeeId], onDelete: Cascade)
+  status            HandoffStatus  @default(waiting_analyst)
   reason            String
-  summary           String        @db.Text
-  assignedAnalystId String?       @db.Uuid
-  assignedAnalyst   Analyst?      @relation(fields: [assignedAnalystId], references: [id], onDelete: SetNull)
-  requestedAt       DateTime      @default(now()) @db.Timestamptz(3)
-  assignedAt        DateTime?     @db.Timestamptz(3)
-  completedAt       DateTime?     @db.Timestamptz(3)
-  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+  summary           String         @db.Text
+  assignedAnalystId String?        @db.Uuid
+  assignedAnalyst   Analyst?       @relation(fields: [assignedAnalystId], references: [id], onDelete: SetNull)
+  events            HandoffEvent[]
+  requestedAt       DateTime       @default(now()) @db.Timestamptz(3)
+  assignedAt        DateTime?      @db.Timestamptz(3)
+  completedAt       DateTime?      @db.Timestamptz(3)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
 
   @@unique([employeeId, idempotencyKey])
+  @@unique([id, employeeId])
   @@index([employeeId, conversationId, status])
   @@index([status, requestedAt])
   @@index([assignedAnalystId, status])
+}
+
+model HandoffEvent {
+  id         String           @id @default(uuid()) @db.Uuid
+  employeeId String           @db.Uuid
+  handoffId  String           @db.Uuid
+  handoff    Handoff          @relation(fields: [handoffId, employeeId], references: [id, employeeId], onDelete: Cascade)
+  action     String
+  actorType  HandoffActorType
+  actorId    String
+  reason     String           @db.Text
+  metadata   Json?
+  createdAt  DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@index([employeeId, handoffId, createdAt])
 }
 
 model KnowledgeDocument {

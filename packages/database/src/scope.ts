@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma } from "./client.js";
 
 const employeeIdSchema = z.string().uuid();
+const analystIdSchema = z.string().uuid();
 type TransactionClient = Omit<
   PrismaClient,
   "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
@@ -17,6 +18,21 @@ export async function withEmployeeScope<T>(
   return prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
       SELECT set_config('app.employee_id', ${scopedEmployeeId}, true)
+    `;
+
+    return operation(transaction);
+  });
+}
+
+export async function withAnalystScope<T>(
+  analystId: string,
+  operation: (transaction: TransactionClient) => Promise<T>,
+): Promise<T> {
+  const scopedAnalystId = analystIdSchema.parse(analystId);
+
+  return prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`
+      SELECT set_config('app.analyst_id', ${scopedAnalystId}, true)
     `;
 
     return operation(transaction);

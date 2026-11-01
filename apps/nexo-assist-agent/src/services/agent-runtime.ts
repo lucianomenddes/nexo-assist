@@ -252,6 +252,29 @@ async function routeIntent(
           data: matches,
         };
       }
+      if (ticket && (ticket.overdue || ticket.priorityCode === "critical")) {
+        const reason = ticket.overdue
+          ? `Chamado vencido: ${ticket.publicKey}`
+          : `Chamado crítico: ${ticket.publicKey}`;
+        const pendingOperation = createPendingOperation(
+          "handoff",
+          { reason, summary: input.content },
+          `Transferir ${ticket.publicKey} para um analista`,
+          reason,
+        );
+        return {
+          intent: "HUMAN_HANDOFF",
+          selectedTool: "request_human_handoff",
+          executionStatus: "awaiting_confirmation",
+          confidence: decision.confidence,
+          reason,
+          answerPlan:
+            "Informe que o chamado crítico ou vencido será encaminhado a um analista e solicite confirmação explícita. Não afirme que a transferência já ocorreu.",
+          sources: [],
+          data: ticket,
+          pendingOperation,
+        };
+      }
       return {
         intent: decision.intent,
         selectedTool: "search_my_tickets",
@@ -297,11 +320,16 @@ async function routeIntent(
         };
       }
 
+      const needsCriticalHandoff = parsed.data.priority === "Crítica";
       const pendingOperation = createPendingOperation(
         "create",
         parsed.data,
-        `Criar chamado ${parsed.data.type} — ${parsed.data.title}`,
-        "Aguardando confirmação explícita do funcionário.",
+        needsCriticalHandoff
+          ? `Criar chamado crítico ${parsed.data.type} — ${parsed.data.title} e transferir para analista`
+          : `Criar chamado ${parsed.data.type} — ${parsed.data.title}`,
+        needsCriticalHandoff
+          ? "A confirmação criará o chamado e solicitará atendimento de analista por criticidade."
+          : "Aguardando confirmação explícita do funcionário.",
       );
       return {
         intent: decision.intent,
@@ -309,8 +337,9 @@ async function routeIntent(
         executionStatus: "awaiting_confirmation",
         confidence: decision.confidence,
         reason: "Rascunho validado; nenhum chamado foi criado.",
-        answerPlan:
-          "Mostre todos os campos do rascunho e solicite confirmação explícita. Não diga que o chamado foi criado.",
+        answerPlan: needsCriticalHandoff
+          ? "Mostre todos os campos e avise que, por ser crítico, a confirmação criará o chamado e o encaminhará para um analista. Solicite confirmação explícita."
+          : "Mostre todos os campos do rascunho e solicite confirmação explícita. Não diga que o chamado foi criado.",
         sources: [],
         data: parsed.data,
         pendingOperation,
@@ -365,11 +394,20 @@ async function routeIntent(
       }
 
       const payload = { ...patch, expectedVersion: ticket.version };
+      const handoffReason = ticket.overdue
+        ? `Chamado vencido: ${ticket.publicKey}`
+        : ticket.priorityCode === "critical" || patch.priority === "Crítica"
+          ? `Chamado crítico: ${ticket.publicKey}`
+          : undefined;
       const pendingOperation = createPendingOperation(
         "update",
         { ticketId: ticket.id, ...payload },
-        `Atualizar ${ticket.publicKey}`,
-        "Aguardando confirmação explícita do funcionário.",
+        handoffReason
+          ? `Atualizar ${ticket.publicKey} e transferir para analista`
+          : `Atualizar ${ticket.publicKey}`,
+        handoffReason
+          ? `${handoffReason}; a confirmação também solicitará atendimento de analista.`
+          : "Aguardando confirmação explícita do funcionário.",
       );
       return {
         intent: decision.intent,
@@ -377,8 +415,9 @@ async function routeIntent(
         executionStatus: "awaiting_confirmation",
         confidence: decision.confidence,
         reason: "Rascunho validado; o chamado permanece inalterado.",
-        answerPlan:
-          "Mostre o chamado e os campos que serão alterados, informe que nenhuma alteração foi aplicada e solicite confirmação explícita.",
+        answerPlan: handoffReason
+          ? `Mostre o chamado e os campos que serão alterados. Avise que a confirmação também encaminhará o caso ao analista (${handoffReason}).`
+          : "Mostre o chamado e os campos que serão alterados, informe que nenhuma alteração foi aplicada e solicite confirmação explícita.",
         sources: [],
         data: { publicKey: ticket.publicKey, ...patch },
         pendingOperation,
@@ -417,8 +456,12 @@ async function routeIntent(
       const pendingOperation = createPendingOperation(
         "reopen",
         { ticketId: ticket.id },
-        `Reabrir ${ticket.publicKey}`,
-        "Aguardando confirmação explícita do funcionário.",
+        ticket.overdue || ticket.priorityCode === "critical"
+          ? `Reabrir ${ticket.publicKey} e transferir para analista`
+          : `Reabrir ${ticket.publicKey}`,
+        ticket.overdue || ticket.priorityCode === "critical"
+          ? "A confirmação reabrirá o chamado e solicitará atendimento de analista."
+          : "Aguardando confirmação explícita do funcionário.",
       );
       return {
         intent: decision.intent,
@@ -428,7 +471,9 @@ async function routeIntent(
         reason:
           "A elegibilidade será revalidada pelo Ticket Service ao confirmar.",
         answerPlan:
-          "Informe o chamado que será reaberto e que o Ticket Service validará o prazo de sete dias após a confirmação.",
+          ticket.overdue || ticket.priorityCode === "critical"
+            ? "Informe que, após a confirmação e validação pelo Ticket Service, o chamado será reaberto e encaminhado a um analista."
+            : "Informe o chamado que será reaberto e que o Ticket Service validará o prazo de sete dias após a confirmação.",
         sources: [],
         data: { publicKey: ticket.publicKey, status: ticket.status },
         pendingOperation,
@@ -582,7 +627,8 @@ export async function executeAgentWorkflow(
       });
       if (
         !conversation ||
-        conversation.status !== ConversationStatus.active ||
+        (conversation.status !== ConversationStatus.active &&
+          conversation.status !== ConversationStatus.agent_resumed) ||
         conversation.agentStatus !== "active"
       ) {
         await transaction.agentExecution.updateMany({
@@ -766,7 +812,8 @@ export async function requireActiveConversation(
     });
     if (!conversation) throw new Error("Conversation not found.");
     if (
-      conversation.status !== ConversationStatus.active ||
+      (conversation.status !== ConversationStatus.active &&
+        conversation.status !== ConversationStatus.agent_resumed) ||
       conversation.agentStatus !== "active"
     ) {
       throw new Error("Conversation is not active for agent responses.");

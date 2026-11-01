@@ -25,10 +25,9 @@
 | `GET /api/v1/conversations`                                            | Listar conversas próprias                                | Funcionário                                   |
 | `GET /api/v1/conversations/{conversationId}`                           | Estado/resumo da conversa                                | Dono ou analista autorizado                   |
 | `GET /api/v1/conversations/{conversationId}/messages`                  | Histórico paginado                                       | Dono ou analista atribuído/console autorizado |
-| `POST /api/v1/conversations/{conversationId}/messages`                 | Enviar mensagem e receber SSE                            | Dono; conversa `active`; abaixo do limite     |
+| `POST /api/v1/conversations/{conversationId}/messages`                 | Enviar mensagem ao assistente/analista                   | Dono; resposta automática pausada no handoff  |
 | `GET /api/v1/conversations/{conversationId}/executions`                | Ver ações e fontes                                       | Dono ou analista autorizado                   |
 | `POST /api/v1/conversations/{conversationId}/drafts/{draftId}/confirm` | Confirmar operação exibida                               | Dono; draft atual, válido e pendente          |
-| `POST /api/v1/conversations/{conversationId}/handoff`                  | Solicitar analista                                       | Dono; conversa não encerrada                  |
 
 `employeeId` não é aceito em rotas de funcionário. Identidade é retirada do contexto servidor.
 
@@ -99,16 +98,19 @@ A API confere identidade, conteúdo/hash e versão do draft, confirma que a inte
 
 ## 3. AI Backend — analista
 
-| Método e rota                                      | Uso                                                        |
-| -------------------------------------------------- | ---------------------------------------------------------- |
-| `GET /api/v1/analyst/handoffs?status=pending`      | Fila e filtros                                             |
-| `GET /api/v1/analyst/conversations/{id}`           | Histórico e contexto permitido                             |
-| `POST /api/v1/analyst/conversations/{id}/takeover` | Assumir atomicamente                                       |
-| `POST /api/v1/analyst/conversations/{id}/return`   | Devolver ao agente                                         |
-| `POST /api/v1/analyst/conversations/{id}/close`    | Encerrar atendimento                                       |
-| `GET /api/v1/analyst/employees/{id}/tickets`       | Chamados necessários para atendimento, com acesso auditado |
+Todas as rotas abaixo exigem JWT com `role: analyst`, `sub` de um analista ativo e issuer/audience válidos. O acesso às conversas é limitado por RLS às transferências da fila e às atribuídas ao analista autenticado.
 
-Todas exigem papel analista. `takeover` retorna `409 HANDOFF_ALREADY_ASSIGNED` se outra pessoa venceu a corrida. Eventos SSE no console podem notificar atualização de fila e mensagem, mas não substituem o estado persistido.
+| Método e rota                                        | Uso                                                |
+| ---------------------------------------------------- | -------------------------------------------------- |
+| `GET /api/v1/analyst/handoffs`                       | Listar fila aguardando e transferências atribuídas |
+| `GET /api/v1/analyst/handoffs/{handoffId}`           | Resumo, mensagens e histórico de eventos           |
+| `POST /api/v1/analyst/handoffs/{handoffId}/assign`   | Assumir atomicamente; corpo `{ "reason": "..." }`  |
+| `POST /api/v1/analyst/handoffs/{handoffId}/messages` | Enviar mensagem; corpo `{ "content": "..." }`      |
+| `POST /api/v1/analyst/handoffs/{handoffId}/resume`   | Retomar agente; corpo `{ "reason": "..." }`        |
+| `POST /api/v1/analyst/handoffs/{handoffId}/resolve`  | Resolver; corpo `{ "reason": "..." }`              |
+| `POST /api/v1/analyst/handoffs/{handoffId}/close`    | Encerrar; corpo `{ "reason": "..." }`              |
+
+A atribuição concorrente que perdeu a atualização condicional recebe `409 INVALID_HANDOFF_TRANSITION`. As transições permitidas são validadas no backend e cada operação registra autor, horário e motivo em `HandoffEvent`. A interface está em `/analyst`.
 
 ## 4. Ticket Service — serviço independente
 

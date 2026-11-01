@@ -19,6 +19,7 @@ import {
   TicketServiceRequestError,
   TicketServiceUnavailableError,
 } from "./ticket-service-client.js";
+import { HandoffService } from "./handoff-service.js";
 
 const maximumEmployeeMessages = 30;
 
@@ -111,6 +112,7 @@ function resultFromMessageMetadata(
 
 export class ConversationService {
   private readonly ticketClient = new TicketServiceClient();
+  private readonly handoffService = new HandoffService();
 
   async createConversation(employeeId: string) {
     return withEmployeeScope(employeeId, async (transaction) => {
@@ -258,7 +260,8 @@ export class ConversationService {
         });
         if (!conversation) throw new ConversationNotFoundError();
         if (
-          conversation.status !== ConversationStatus.active ||
+          (conversation.status !== ConversationStatus.active &&
+            conversation.status !== ConversationStatus.agent_resumed) ||
           conversation.agentStatus !== AgentStatus.active
         ) {
           throw new ConversationNotActiveError();
@@ -344,11 +347,49 @@ export class ConversationService {
         }
         data = await this.ticketClient.reopen(employeeId, ticketId, draftId);
       } else {
-        data = await this.createHandoff({
+        data = await this.handoffService.requestEmployeeHandoff({
           employeeId,
           conversationId,
           idempotencyKey: draftMessage.draft.id,
-          payload: draftMessage.draft.payload,
+          reason:
+            typeof draftMessage.draft.payload.reason === "string"
+              ? draftMessage.draft.payload.reason
+              : "Solicitação do funcionário",
+        });
+      }
+
+      const ticketOperation =
+        draftMessage.draft.operation === "create" ||
+        draftMessage.draft.operation === "update" ||
+        draftMessage.draft.operation === "reopen";
+      const ticketData =
+        data !== null && typeof data === "object" ? data : undefined;
+      const ticketIsOverdue =
+        ticketData !== undefined &&
+        "overdue" in ticketData &&
+        ticketData.overdue === true;
+      const ticketIsCritical =
+        ticketData !== undefined &&
+        ("priorityCode" in ticketData
+          ? ticketData.priorityCode === "critical"
+          : "priority" in ticketData && ticketData.priority === "Crítica");
+      const ticketRequiresHandoff =
+        ticketOperation && (ticketIsOverdue || ticketIsCritical);
+      let ticketHandoff: Awaited<
+        ReturnType<HandoffService["requestEmployeeHandoff"]>
+      > | null = null;
+      if (ticketRequiresHandoff) {
+        const publicKey =
+          ticketData && "publicKey" in ticketData
+            ? String(ticketData.publicKey)
+            : "Chamado";
+        ticketHandoff = await this.handoffService.requestEmployeeHandoff({
+          employeeId,
+          conversationId,
+          idempotencyKey: `ticket-handoff:${draftId}`,
+          reason: ticketIsOverdue
+            ? `Chamado vencido: ${publicKey}`
+            : `Chamado crítico: ${publicKey}`,
         });
       }
 
@@ -365,9 +406,11 @@ export class ConversationService {
         answer:
           draftMessage.draft.operation === "handoff"
             ? "A conversa foi transferida para a fila de analistas."
-            : "A operação foi confirmada e executada pelo Ticket Service.",
+            : ticketHandoff
+              ? "A operação do chamado foi concluída e a conversa foi encaminhada para a fila de analistas."
+              : "A operação foi confirmada e executada pelo Ticket Service.",
         sources: [],
-        data,
+        data: ticketHandoff ? { ticket: data, handoff: ticketHandoff } : data,
       });
       await this.finishConfirmationExecution({
         employeeId,
@@ -482,9 +525,7 @@ export class ConversationService {
         throw new MessageLimitReachedError();
       }
 
-      const paused =
-        conversation.status !== ConversationStatus.active ||
-        conversation.agentStatus !== AgentStatus.active;
+      const paused = conversation.agentStatus !== AgentStatus.active;
       const message = await transaction.message.create({
         data: {
           employeeId: input.employeeId,
@@ -695,68 +736,6 @@ export class ConversationService {
           outputSummary: input.draft.operation,
           status: AuditStatus.succeeded,
         },
-      });
-    });
-  }
-
-  private async createHandoff(input: {
-    employeeId: string;
-    conversationId: string;
-    idempotencyKey: string;
-    payload: Record<string, unknown>;
-  }) {
-    const reason =
-      typeof input.payload.reason === "string"
-        ? input.payload.reason
-        : "Solicitação do funcionário";
-    const summary =
-      typeof input.payload.summary === "string" ? input.payload.summary : "";
-    return withEmployeeScope(input.employeeId, async (transaction) => {
-      const existing = await transaction.handoff.findUnique({
-        where: {
-          employeeId_idempotencyKey: {
-            employeeId: input.employeeId,
-            idempotencyKey: input.idempotencyKey,
-          },
-        },
-        select: { id: true, status: true, requestedAt: true },
-      });
-      if (existing) return existing;
-
-      const updated = await transaction.conversation.updateMany({
-        where: {
-          id: input.conversationId,
-          employeeId: input.employeeId,
-          status: ConversationStatus.active,
-          agentStatus: AgentStatus.active,
-        },
-        data: {
-          status: ConversationStatus.waiting_analyst,
-          agentStatus: AgentStatus.paused,
-        },
-      });
-      if (updated.count !== 1) {
-        const replay = await transaction.handoff.findUnique({
-          where: {
-            employeeId_idempotencyKey: {
-              employeeId: input.employeeId,
-              idempotencyKey: input.idempotencyKey,
-            },
-          },
-          select: { id: true, status: true, requestedAt: true },
-        });
-        if (replay) return replay;
-        throw new ConversationNotActiveError();
-      }
-      return transaction.handoff.create({
-        data: {
-          employeeId: input.employeeId,
-          conversationId: input.conversationId,
-          idempotencyKey: input.idempotencyKey,
-          reason,
-          summary,
-        },
-        select: { id: true, status: true, requestedAt: true },
       });
     });
   }

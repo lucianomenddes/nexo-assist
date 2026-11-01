@@ -1,6 +1,7 @@
 import {
   AuditStatus,
   ExecutionStatus,
+  HandoffStatus,
   MessageActorType,
   TicketPriority,
   TicketType,
@@ -219,6 +220,7 @@ describe.sequential("PostgreSQL domain persistence", () => {
           id: handoffId,
           employeeId: employeeA,
           conversationId: conversationA,
+          status: HandoffStatus.analyst_assigned,
           reason: "Employee requested an analyst.",
           summary: "VPN access support.",
           assignedAnalystId: analystId,
@@ -226,6 +228,12 @@ describe.sequential("PostgreSQL domain persistence", () => {
         },
       }),
     );
+    await transitionConversation({
+      employeeId: employeeA,
+      conversationId: conversationA,
+      expectedStatus: "waiting_analyst",
+      nextStatus: "analyst_assigned",
+    });
 
     const document = await prisma.knowledgeDocument.findUniqueOrThrow({
       where: { id: documentId },

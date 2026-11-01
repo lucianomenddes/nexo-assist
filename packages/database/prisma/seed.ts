@@ -165,11 +165,27 @@ async function seed(): Promise<void> {
         id: handoffId,
         employeeId,
         conversationId,
-        status: HandoffStatus.assigned,
+        status: HandoffStatus.analyst_assigned,
         reason: "Solicitação do funcionário",
         summary: "Funcionário precisa de suporte para acesso à VPN.",
         assignedAnalystId: analystId,
         assignedAt: new Date(),
+        events: {
+          create: [
+            {
+              action: "requested",
+              actorType: "employee",
+              actorId: employeeId,
+              reason: "Solicitação do funcionário",
+            },
+            {
+              action: "assigned",
+              actorType: "analyst",
+              actorId: analystId,
+              reason: "Atendimento atribuído ao analista de seed.",
+            },
+          ],
+        },
       },
       update: {},
     });
