@@ -43,6 +43,10 @@ export const intentDecisionSchema = z.object({
   ticketFields: ticketFieldsSchema.optional(),
   ticketReference: z.string().trim().min(2).max(100).optional(),
   searchQuery: z.string().trim().min(2).max(200).optional(),
+  knowledgeCategory: z.string().trim().min(1).max(100).optional(),
+  knowledgeTags: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  platform: z.string().trim().min(1).max(80).optional(),
+  knowledgeVersion: z.number().int().positive().optional(),
   handoffReason: z.string().trim().min(1).max(500).optional(),
 });
 
@@ -52,6 +56,12 @@ export const knowledgeSourceSchema = z.object({
   title: z.string(),
   source: z.string(),
   content: z.string(),
+  category: z.string().nullable(),
+  tags: z.array(z.string()),
+  platform: z.string().nullable(),
+  version: z.number().int().positive(),
+  status: z.literal("published"),
+  updatedAt: z.string().datetime(),
   score: z.number(),
 });
 

@@ -1,0 +1,46 @@
+{
+  "version": "prd-knowledge-v1",
+  "cases": [
+    {
+      "id": "vpn-error-809-windows-10",
+      "query": "Como corrigir o erro 809 da VPN no Windows 10?",
+      "filters": {
+        "category": "Rede e VPN",
+        "platform": "Windows 10"
+      },
+      "expectedSources": ["nexo://knowledge-base/vpn-error-809"],
+      "expectedFacts": [
+        "A orientação é restrita ao Windows 10.",
+        "O artigo manda reinstalar o cliente pelo portal de softwares e reiniciar o computador."
+      ],
+      "referenceAnswer": "Para Windows 10, o artigo orienta reinstalar o cliente de VPN pelo portal de softwares e reiniciar o computador."
+    },
+    {
+      "id": "vpn-error-809-windows-11-abstention",
+      "query": "Como corrijo o erro 809 da VPN no Windows 11?",
+      "filters": {
+        "category": "Rede e VPN",
+        "platform": "Windows 11"
+      },
+      "expectedSources": [],
+      "expectedFacts": [
+        "Não apresentar o procedimento exclusivo de Windows 10 como aplicável ao Windows 11.",
+        "Informar que não encontrou orientação confiável para a plataforma solicitada."
+      ],
+      "referenceAnswer": "Não encontrei orientação confiável aplicável ao Windows 11 na base de conhecimento."
+    },
+    {
+      "id": "service-desk-hours",
+      "query": "Qual é o horário do Service Desk e há plantão?",
+      "filters": {
+        "category": "Service Desk"
+      },
+      "expectedSources": ["nexo://knowledge-base/service-desk-hours"],
+      "expectedFacts": [
+        "O horário regular é de segunda a sexta, das 8h às 18h.",
+        "Chamados críticos têm plantão 24 horas."
+      ],
+      "referenceAnswer": "O Service Desk funciona de segunda a sexta, das 8h às 18h. Chamados críticos têm plantão 24 horas."
+    }
+  ]
+}

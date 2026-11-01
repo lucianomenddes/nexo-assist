@@ -23,6 +23,10 @@ import {
   MessageLimitReachedError,
 } from "./services/conversation-service.js";
 import { mastra, mastraStorage } from "./mastra/index.js";
+import {
+  closeKnowledgeVectorStore,
+  initializeKnowledgeVectorIndex,
+} from "./services/knowledge-rag.js";
 
 type ReadinessCheck = () => Promise<void>;
 type ServerOptions = {
@@ -292,6 +296,7 @@ export function buildServer(
   if (options.closeDependencies !== false) {
     server.addHook("onClose", async () => {
       await mastraStorage.close();
+      await closeKnowledgeVectorStore();
       await closeDatabaseConnection();
     });
   }
@@ -303,6 +308,7 @@ async function main(): Promise<void> {
   const environment = loadEnvironment();
   void mastra;
   await mastraStorage.init();
+  await initializeKnowledgeVectorIndex();
   const server = buildServer();
   await server.listen({ port: environment.AGENT_PORT, host: "0.0.0.0" });
 }

@@ -4,8 +4,9 @@
   "globalEnv": [
     "NODE_ENV",
     "DATABASE_URL",
+    "GROQ_API_KEY",
+    "GROQ_MODEL",
     "OPENAI_API_KEY",
-    "OPENAI_MODEL",
     "AUTH_JWT_SECRET",
     "AUTH_JWT_ISSUER",
     "AUTH_JWT_AUDIENCE",

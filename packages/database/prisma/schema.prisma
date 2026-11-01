@@ -275,6 +275,7 @@ model KnowledgeDocument {
   updatedAt   DateTime                @updatedAt @db.Timestamptz(3)
 
   @@unique([source, version])
+  @@unique([contentHash])
   @@index([status, category])
 }
 

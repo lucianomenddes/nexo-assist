@@ -47,6 +47,8 @@ pnpm dev                                  # inicia todos os apps do workspace
 pnpm exec turbo run dev --filter=web
 pnpm exec turbo run dev --filter=nexo-assist-agent
 pnpm exec turbo run dev --filter=@nexo-assist/ticket-service
+pnpm --filter nexo-assist-agent rag:ingest -- ./evals/fixtures/vpn-error-809.json
+pnpm --filter nexo-assist-agent rag:evaluate
 pnpm db:up                                # inicia PostgreSQL
 pnpm db:migrate                           # aplica migrations em desenvolvimento
 pnpm db:seed                              # insere exemplos idempotentes
@@ -112,7 +114,9 @@ definidos pelo PRD e devem ser confirmados antes do uso com SLA de produção.
 
 ## Mastra
 
-O pacote `apps/nexo-assist-agent` é identificado como `nexo-assist-agent` e registra o agente `Nexo Assist` usando a API `Agent` de `@mastra/core`. O storage PostgreSQL do Mastra usa o schema `mastra_storage`; tabelas de domínio Prisma permanecem no schema `public`. O servidor HTTP é Fastify para manter consistência com a decisão de arquitetura; Mastra fornece a abstração do agente. O modelo usa o formato `provider/model` e a credencial OpenAI é fornecida via `OPENAI_API_KEY`.
+O pacote `apps/nexo-assist-agent` é identificado como `nexo-assist-agent` e registra o agente `Nexo Assist` usando a API `Agent` de `@mastra/core`. O storage PostgreSQL do Mastra usa o schema `mastra_storage`; tabelas de domínio Prisma permanecem no schema `public`. O servidor HTTP é Fastify para manter consistência com a decisão de arquitetura; Mastra fornece a abstração do agente. A geração usa Groq via `GROQ_API_KEY` e `GROQ_MODEL` (padrão `groq/openai/gpt-oss-20b`); `OPENAI_API_KEY` permanece configurada para embeddings, pois os modelos GPT-OSS não fornecem vetores de embedding e o catálogo Groq atual não lista um modelo de embedding.
+
+A recuperação RAG combina `PgVector`/pgvector com busca lexical, usando somente artigos publicados e respeitando filtros de plataforma e metadados. Artigos TXT, Markdown, HTML e PDF são ingeridos pelo CLI administrativo; consulte [README do agente](./apps/nexo-assist-agent/README.md) e [desenho RAG](./docs/RAG_DESIGN.md) para manifestos e avaliação.
 
 ## Qualidade
 

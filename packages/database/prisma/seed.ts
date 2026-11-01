@@ -25,6 +25,10 @@ const chunkId = "00000000-0000-4000-8000-000000000011";
 const idempotencyId = "00000000-0000-4000-8000-000000000012";
 const idempotencyKey = "seed-ticket-create-v1";
 const requestHash = "seed-request-hash";
+const seededKnowledgeContent =
+  "Instale o cliente VPN homologado e autentique com sua conta corporativa.";
+const seededKnowledgeContentHash =
+  "d33b3e47159a2d766cbe813ef7a4b9f979bc7ccba4fbe5d586f801d43a49f06b";
 
 async function seed(): Promise<void> {
   await prisma.analyst.upsert({
@@ -190,9 +194,9 @@ async function seed(): Promise<void> {
       status: "published",
       platforms: ["Windows", "macOS"],
       tags: ["vpn", "acesso"],
-      contentHash: "seed-vpn-document-v1",
+      contentHash: seededKnowledgeContentHash,
     },
-    update: {},
+    update: { contentHash: seededKnowledgeContentHash },
   });
 
   await prisma.knowledgeChunk.upsert({
@@ -201,8 +205,7 @@ async function seed(): Promise<void> {
       id: chunkId,
       documentId,
       ordinal: 0,
-      content:
-        "Instale o cliente VPN homologado e autentique com sua conta corporativa.",
+      content: seededKnowledgeContent,
       tokenCount: 13,
     },
     update: {},

@@ -1,6 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { searchKnowledgeBase } from "../../services/knowledge-retriever.js";
+import { searchKnowledgeBase } from "../../services/knowledge-rag.js";
 import { TicketServiceClient } from "../../services/ticket-service-client.js";
 import { knowledgeSourceSchema, ticketFieldsSchema } from "../domain.js";
 
@@ -10,10 +10,20 @@ export const searchKnowledgeBaseTool = createTool({
   id: "search_knowledge_base",
   description:
     "Recupera trechos publicados da central de ajuda institucional. Não retorna chamados ou mensagens privadas.",
-  inputSchema: z.object({ query: z.string().trim().min(2).max(500) }),
+  inputSchema: z.object({
+    query: z.string().trim().min(2).max(500),
+    filters: z
+      .object({
+        category: z.string().trim().min(1).max(100).optional(),
+        tags: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+        platform: z.string().trim().min(1).max(80).optional(),
+        version: z.number().int().positive().optional(),
+      })
+      .optional(),
+  }),
   outputSchema: z.object({ sources: z.array(knowledgeSourceSchema) }),
-  execute: async ({ query }) => ({
-    sources: await searchKnowledgeBase(query),
+  execute: async ({ query, filters }) => ({
+    sources: await searchKnowledgeBase(query, filters),
   }),
 });
 

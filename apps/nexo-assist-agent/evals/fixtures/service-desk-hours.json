@@ -1,0 +1,13 @@
+{
+  "file": "examples/service-desk-hours.md",
+  "metadata": {
+    "recordType": "knowledge_article",
+    "source": "nexo://knowledge-base/service-desk-hours",
+    "title": "Horário do Service Desk",
+    "category": "Service Desk",
+    "tags": ["horario", "plantao"],
+    "platforms": [],
+    "version": 1,
+    "status": "published"
+  }
+}

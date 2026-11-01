@@ -8,22 +8,22 @@ RAG responde dúvidas sobre conhecimento institucional de TI por artigos aprovad
 
 ## 2. Decisões iniciais
 
-| Item        | Proposta MVP                                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| Vetor       | PostgreSQL + extensão pgvector                                                                                   |
-| Embedding   | OpenAI `text-embedding-3-small`; dimensão inicial 1536 se mantido o padrão do modelo                             |
-| Banco       | `KnowledgeDocument` e `KnowledgeChunk`, em schema com acesso restrito                                            |
-| Busca       | Similaridade semântica mais busca lexical de PostgreSQL; combinar ranking e avaliar                              |
-| Chunking    | Preservar seções Markdown; inicial de 400–600 tokens, sobreposição de 50–80 tokens, sujeito a avaliação          |
-| Recuperação | Top-K inicial 5, com filtros por publicação, categoria, plataforma/versão aplicáveis                             |
-| Índice      | Busca exata como baseline; adotar HNSW após medir ganho para volume/latência e perda de recall                   |
-| Resposta    | Trechos e referências de artigo são fornecidos ao agente; sem evidência adequada, abstém-se e pergunta/encaminha |
+| Item        | Implementação atual                                                                                             |
+| ----------- | --------------------------------------------------------------------------------------------------------------- |
+| Vetor       | `@mastra/pg` `PgVector` sobre PostgreSQL/pgvector, no schema `mastra_storage`                                   |
+| Embedding   | OpenAI `text-embedding-3-small`, dimensão validada em 1536                                                      |
+| Banco       | Metadados e chunks em `KnowledgeDocument`/`KnowledgeChunk` Prisma no schema `public`; vetores em storage Mastra |
+| Busca       | Busca vetorial + full-text PostgreSQL, fusão Reciprocal Rank Fusion e validação final contra domínio            |
+| Chunking    | Mastra `MDocument`; Markdown preserva cabeçalhos, alvo de 1200 caracteres e overlap de 120 caracteres           |
+| Recuperação | Top-K padrão 5; filtros por status, categoria, tags e plataforma                                                |
+| Índice      | HNSW cosine, com índices btree sobre metadados                                                                  |
+| Resposta    | Fonte, versão, plataforma e data do documento acompanham o chunk; resposta sem evidência deve abster-se         |
 
 Parâmetros são hipóteses de partida e não critérios de verdade. O corpus seed do PRD contém poucos artigos; medir antes de adicionar complexidade ou índice aproximado. Versionar modelo e dimensão: trocar embedding exige reprocessar todos os chunks de forma consistente.
 
 ## 3. Metadados
 
-Cada documento contém: `documentId`, título, categoria, tags, plataforma(s), versão, status (`draft | published | archived`), fonte, versão do conteúdo, data de atualização, hash e idioma. Chunk mantém `documentId`, ordinal, heading/contexto, conteúdo, contagem aproximada de tokens e embedding.
+Cada documento contém: `documentId`, título, categoria, tags, plataforma(s), versão, status (`draft | published | archived`), fonte, data de atualização e hash SHA-256 do texto normalizado. Chunk mantém `documentId`, ordinal, heading/contexto, conteúdo e contagem aproximada de tokens. O vector store guarda o embedding e os mesmos metadados de filtro, além do conteúdo do chunk.
 
 Exemplos do PRD incluem erro 809 de VPN (restrito a Windows 10) e horário do Service Desk (plantão 24h para chamados críticos). A resposta deve respeitar as restrições do documento e não generalizar o procedimento para Windows 11.
 
@@ -43,8 +43,9 @@ flowchart LR
 ```
 
 - Ingestão é processo controlado, não tool pública do agente no MVP.
+- O CLI só aceita `recordType: knowledge_article` e arquivos dentro de `knowledge-base/`; tickets e dados privados não têm rota de ingestão.
 - `contentHash` e `(source, version)` tornam reingestão idempotente.
-- Publicação não expõe parcialmente um conjunto; recuperar somente versão ativa/publicada.
+- O pipeline persiste vetores antes de substituir os chunks de domínio e só promove a versão após indexação; recuperar somente documento publicado validado no domínio.
 - Erros de OpenAI, documento inválido ou embedding de dimensão inesperada são explícitos; preservar versão publicada anterior.
 - Alterar artigo despublica/arquiva versão antiga conforme política e retém auditoria de versão.
 
@@ -64,7 +65,7 @@ flowchart TD
     SOURCES --> AGENT["Agente responde com citações"]
 ```
 
-Filtros de plataforma/versão aplicam-se apenas quando conhecidos ou explicitamente solicitados. Não escolher automaticamente um procedimento incompatível quando plataformas divergem; perguntar primeiro. Um limiar de relevância deve ser medido em conjunto de avaliação, não presumido como valor universal.
+Filtros de plataforma aplicam-se antes da resposta: com plataforma explícita, recupera documentos globais e os compatíveis com ela; sem plataforma, somente documentos globais. Versões arquivadas são excluídas do vector filter e revalidadas contra o status relacional. Não escolher automaticamente um procedimento incompatível quando plataformas divergem. Um limiar de relevância deve ser medido em conjunto de avaliação, não presumido como valor universal.
 
 ## 6. Resposta e citações
 
@@ -74,7 +75,7 @@ Se não houver fonte útil, a resposta explicita que a base não encontrou proce
 
 ## 7. Avaliação
 
-Criar um dataset versionado de perguntas, evidência esperada, plataforma, resposta permitida e condição de abstenção, baseado nos artigos seed. Incluir:
+O dataset versionado está em `apps/nexo-assist-agent/evals/rag-evaluation.json`, com fontes esperadas, fatos e resposta de referência. O runner calcula Recall@K e MRR e usa avaliação de modelo para groundedness, relevância e cobertura. Incluir:
 
 - “Como corrigir erro 809 da VPN?” → artigo VPN e passo aplicável à plataforma informada.
 - “Uso Windows 11; posso reinstalar o cliente?” → não aplicar instrução limitada a Windows 10; dizer que o artigo orienta abrir chamado.
@@ -84,7 +85,7 @@ Criar um dataset versionado de perguntas, evidência esperada, plataforma, respo
 - Pergunta com versão/plataforma contraditória → clarificação.
 - Prompt injection embutido em artigo ou pergunta → não muda regras/políticas.
 
-Métricas por versão de corpus/modelo: Recall@K, MRR ou nDCG, cobertura de citações, relevância da resposta, correção de restrições, taxa de abstenção correta, latência e custo. Critérios de aprovação e thresholds são definidos após baseline rotulado; não inventar um número nesta etapa.
+Métricas por versão de corpus/modelo incluem Recall@K, MRR, groundedness, relevância, cobertura, correção de restrições e taxa de abstenção correta. Critérios de aprovação e thresholds são definidos após baseline rotulado; não inventar um número nesta etapa.
 
 ## 8. Privacidade e operação
 

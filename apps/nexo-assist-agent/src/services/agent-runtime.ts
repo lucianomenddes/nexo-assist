@@ -11,7 +11,8 @@ import {
   type KnowledgeSource,
 } from "../mastra/domain.js";
 import { systemInstructions } from "../mastra/system-instructions.js";
-import { searchKnowledgeBase } from "./knowledge-retriever.js";
+import { composeGroundedKnowledgeAnswer } from "./knowledge-answer.js";
+import { searchKnowledgeBase } from "./knowledge-rag.js";
 import {
   TicketServiceClient,
   type OwnedTicket,
@@ -197,7 +198,12 @@ async function routeIntent(
 
   switch (decision.intent) {
     case "KNOWLEDGE_QUERY": {
-      const sources = await searchKnowledgeBase(input.content);
+      const sources = await searchKnowledgeBase(input.content, {
+        category: decision.knowledgeCategory,
+        tags: decision.knowledgeTags,
+        platform: decision.platform,
+        version: decision.knowledgeVersion,
+      });
       if (sources.length === 0) {
         const reason =
           "A base publicada não retornou evidências para esta pergunta.";
@@ -470,6 +476,15 @@ async function composeAnswer(
   input: AgentWorkflowInput,
   plan: RoutePlan,
 ): Promise<string> {
+  if (plan.intent === "KNOWLEDGE_QUERY") {
+    return composeGroundedKnowledgeAnswer({
+      query: input.content,
+      sources: plan.sources,
+      traceId: input.traceId,
+      conversationId: input.conversationId,
+      employeeId: input.employeeId,
+    });
+  }
   const generated = await nexoAssistant.generate(
     JSON.stringify({
       employeeMessage: input.content,

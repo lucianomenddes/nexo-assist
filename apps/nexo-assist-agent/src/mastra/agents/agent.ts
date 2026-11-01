@@ -11,7 +11,7 @@ export const nexoAssistant = new Agent({
   name: "Nexo Assistant Agent",
   description: "Assistente de Service Desk de TI da Nexo.",
   instructions: systemInstructions,
-  model: environment.OPENAI_MODEL,
+  model: environment.GROQ_MODEL,
   memory: new Memory({
     storage: mastraStorage,
     options: {
