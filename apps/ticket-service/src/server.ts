@@ -54,7 +54,7 @@ declare module "fastify" {
   }
 }
 
-export function buildServer(
+export async function buildServer(
   checkDatabase: ReadinessCheck = checkDatabaseConnection,
   options: TestableOptions = {},
 ) {
@@ -67,7 +67,7 @@ export function buildServer(
     audience: options.auth?.audience ?? environment.AUTH_JWT_AUDIENCE,
   };
 
-  void server.register(swagger, {
+  await server.register(swagger, {
     openapi: {
       openapi: "3.0.3",
       info: {
@@ -83,8 +83,8 @@ export function buildServer(
       },
     },
   });
-  void server.register(swaggerUi, { routePrefix: "/docs" });
-  void registerAuthentication(server, auth);
+  await server.register(swaggerUi, { routePrefix: "/docs" });
+  await registerAuthentication(server, auth);
 
   server.setErrorHandler(
     (error: import("fastify").FastifyError | Error, request, reply): void => {
@@ -98,6 +98,19 @@ export function buildServer(
         void reply
           .code(403)
           .send({ error: "FORBIDDEN", message: error.message });
+        return;
+      }
+
+      if (
+        "code" in error &&
+        error.code === "FST_ERR_VALIDATION" &&
+        "statusCode" in error &&
+        error.statusCode === 400
+      ) {
+        void reply.code(400).send({
+          error: "VALIDATION_ERROR",
+          message: "Request validation failed.",
+        });
         return;
       }
 
@@ -461,7 +474,7 @@ export function buildServer(
 
 async function main(): Promise<void> {
   const environment = loadEnvironment();
-  const server = buildServer();
+  const server = await buildServer();
   await server.listen({
     port: environment.TICKET_SERVICE_PORT,
     host: "0.0.0.0",

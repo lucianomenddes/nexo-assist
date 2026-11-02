@@ -68,7 +68,7 @@ type PendingOperation = {
   reason: string;
 };
 
-type RoutePlan = {
+export type RoutePlan = {
   intent: IntentDecision["intent"];
   selectedTool: string | null;
   executionStatus: AgentTurnResult["executionStatus"];
@@ -78,6 +78,11 @@ type RoutePlan = {
   sources: KnowledgeSource[];
   pendingOperation?: PendingOperation;
   data?: unknown;
+};
+
+export type RouteIntentDependencies = {
+  searchKnowledge: typeof searchKnowledgeBase;
+  listTickets: (employeeId: string, query?: string) => Promise<OwnedTicket[]>;
 };
 
 const ticketClient = new TicketServiceClient();
@@ -217,6 +222,8 @@ async function resolveTicket(
   input: AgentWorkflowInput,
   reference?: string,
   query?: string,
+  listTickets: RouteIntentDependencies["listTickets"] = (employeeId, search) =>
+    ticketClient.list(employeeId, search),
 ): Promise<{ ticket?: OwnedTicket; matches: OwnedTicket[] }> {
   const isUuid = reference
     ? z.string().uuid().safeParse(reference).success
@@ -226,7 +233,7 @@ async function resolveTicket(
     input,
     "search_my_tickets",
     { reference, query: searchTerm },
-    () => ticketClient.list(input.employeeId, searchTerm),
+    () => listTickets(input.employeeId, searchTerm),
     (tickets) => ({
       count: tickets.length,
       tickets: tickets.map((ticket) => ({
@@ -263,10 +270,16 @@ function clarifyFields(fields: string[]): string {
   return `Para preparar o chamado, preciso de ${fields.map((field) => labels[field]).join(", ")}.`;
 }
 
-async function routeIntent(
+export async function routeIntent(
   input: AgentWorkflowInput,
   decision: IntentDecision,
+  overrides: Partial<RouteIntentDependencies> = {},
 ): Promise<RoutePlan> {
+  const searchKnowledge = overrides.searchKnowledge ?? searchKnowledgeBase;
+  const listTickets =
+    overrides.listTickets ??
+    ((employeeId: string, query?: string) =>
+      ticketClient.list(employeeId, query));
   if (decision.confidence < confidenceThreshold) {
     const reason = `Intenção ${decision.intent} classificada com baixa confiança (${decision.confidence.toFixed(2)}); transferência aguardando confirmação.`;
     return {
@@ -302,7 +315,7 @@ async function routeIntent(
         input,
         "search_knowledge_base",
         { query: input.content, filters },
-        () => searchKnowledgeBase(input.content, filters),
+        () => searchKnowledge(input.content, filters),
         (matches) => ({
           count: matches.length,
           sources: matches.map(({ title, source, score }) => ({
@@ -345,6 +358,7 @@ async function routeIntent(
         input,
         decision.ticketReference,
         decision.searchQuery,
+        listTickets,
       );
       if (decision.ticketReference && !ticket) {
         return {
@@ -469,7 +483,12 @@ async function routeIntent(
           sources: [],
         };
       }
-      const { ticket } = await resolveTicket(input, decision.ticketReference);
+      const { ticket } = await resolveTicket(
+        input,
+        decision.ticketReference,
+        undefined,
+        listTickets,
+      );
       if (!ticket) {
         return {
           intent: decision.intent,
@@ -543,7 +562,12 @@ async function routeIntent(
           sources: [],
         };
       }
-      const { ticket } = await resolveTicket(input, decision.ticketReference);
+      const { ticket } = await resolveTicket(
+        input,
+        decision.ticketReference,
+        undefined,
+        listTickets,
+      );
       if (!ticket) {
         return {
           intent: decision.intent,

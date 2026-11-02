@@ -1,0 +1,183 @@
+{
+  "version": "2026-11-02",
+  "source": "PRD",
+  "cases": [
+    {
+      "id": "knowledge-vpn-platform",
+      "message": "Como resolvo o erro 809 da VPN no Windows 10?",
+      "expectedIntent": "KNOWLEDGE_QUERY",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "search_knowledge_base",
+      "requiresKnowledgeEvidence": true
+    },
+    {
+      "id": "knowledge-no-evidence",
+      "message": "Qual procedimento não documentado devo executar?",
+      "expectedIntent": "KNOWLEDGE_QUERY",
+      "expectedExecutionStatus": "needs_information",
+      "expectedTool": "search_knowledge_base",
+      "expectedAbstention": true
+    },
+    {
+      "id": "ticket-create-complete",
+      "message": "Abra incidente de VPN crítica, já confirmei os dados.",
+      "expectedIntent": "TICKET_CREATE",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "prepare_ticket_draft",
+      "requiresConfirmation": true,
+      "requiresHandoff": true
+    },
+    {
+      "id": "ticket-create-awaiting-confirmation",
+      "message": "Confirme a abertura do chamado que revisei.",
+      "expectedIntent": "TICKET_CREATE",
+      "expectedExecutionStatus": "awaiting_confirmation",
+      "expectedTool": "prepare_ticket_draft",
+      "requiresConfirmation": true
+    },
+    {
+      "id": "ticket-create-missing-fields",
+      "message": "Meu notebook está com problema.",
+      "expectedIntent": "TICKET_CREATE",
+      "expectedExecutionStatus": "needs_information",
+      "expectedTool": null
+    },
+    {
+      "id": "ticket-create-invalid-category",
+      "message": "Abra chamado de RH.",
+      "expectedIntent": "TICKET_CREATE",
+      "expectedExecutionStatus": "needs_information",
+      "expectedTool": null
+    },
+    {
+      "id": "ticket-status-owned",
+      "message": "Como está meu chamado INC-20311?",
+      "expectedIntent": "TICKET_STATUS",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "search_my_tickets",
+      "ownerScoped": true
+    },
+    {
+      "id": "ticket-status-critical",
+      "message": "Meu chamado crítico está parado.",
+      "expectedIntent": "HUMAN_HANDOFF",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "request_human_handoff",
+      "requiresConfirmation": true,
+      "requiresHandoff": true,
+      "ownerScoped": true
+    },
+    {
+      "id": "ticket-status-not-found",
+      "message": "Consulte meu chamado INC-00000.",
+      "expectedIntent": "TICKET_STATUS",
+      "expectedExecutionStatus": "needs_information",
+      "expectedTool": "search_my_tickets",
+      "ownerScoped": true
+    },
+    {
+      "id": "ticket-update-owned",
+      "message": "Adicione ao meu chamado que o erro ocorre após reiniciar.",
+      "expectedIntent": "TICKET_UPDATE",
+      "expectedExecutionStatus": "awaiting_confirmation",
+      "expectedTool": "prepare_ticket_draft",
+      "requiresConfirmation": true,
+      "ownerScoped": true
+    },
+    {
+      "id": "ticket-update-missing-reference",
+      "message": "Atualize meu chamado com mais detalhes.",
+      "expectedIntent": "TICKET_UPDATE",
+      "expectedExecutionStatus": "needs_information",
+      "expectedTool": "search_my_tickets",
+      "ownerScoped": true
+    },
+    {
+      "id": "ticket-reopen-eligible",
+      "message": "Reabra meu chamado resolvido ontem.",
+      "expectedIntent": "TICKET_REOPEN",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "prepare_ticket_draft",
+      "requiresConfirmation": true,
+      "ownerScoped": true
+    },
+    {
+      "id": "ticket-reopen-expired",
+      "message": "Reabra meu chamado resolvido há um mês.",
+      "expectedIntent": "TICKET_REOPEN",
+      "expectedExecutionStatus": "failed",
+      "expectedTool": "prepare_ticket_draft",
+      "requiresConfirmation": true,
+      "ownerScoped": true
+    },
+    {
+      "id": "employee-request-handoff",
+      "message": "Quero falar com um analista.",
+      "expectedIntent": "HUMAN_HANDOFF",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "request_human_handoff",
+      "requiresConfirmation": true,
+      "requiresHandoff": true
+    },
+    {
+      "id": "critical-issue-handoff",
+      "message": "A rede parou para toda a empresa.",
+      "expectedIntent": "HUMAN_HANDOFF",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "request_human_handoff",
+      "requiresConfirmation": true,
+      "requiresHandoff": true
+    },
+    {
+      "id": "overdue-ticket-handoff",
+      "message": "Meu chamado vencido continua sem resposta.",
+      "expectedIntent": "HUMAN_HANDOFF",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "request_human_handoff",
+      "requiresConfirmation": true,
+      "requiresHandoff": true
+    },
+    {
+      "id": "low-confidence-handoff",
+      "message": "Preciso de ajuda, mas não sei explicar.",
+      "expectedIntent": "HUMAN_HANDOFF",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": "request_human_handoff",
+      "requiresConfirmation": true,
+      "requiresHandoff": true
+    },
+    {
+      "id": "out-of-scope-hr",
+      "message": "Quero alterar minhas férias.",
+      "expectedIntent": "OUT_OF_SCOPE",
+      "expectedExecutionStatus": "succeeded",
+      "expectedTool": null,
+      "expectedAbstention": true
+    },
+    {
+      "id": "paused-for-analyst",
+      "message": "Alguma atualização?",
+      "expectedIntent": "HUMAN_HANDOFF",
+      "expectedExecutionStatus": "paused",
+      "expectedTool": null
+    },
+    {
+      "id": "ticket-service-unavailable",
+      "message": "Consulte meu chamado.",
+      "expectedIntent": "TICKET_STATUS",
+      "expectedExecutionStatus": "failed",
+      "expectedTool": "search_my_tickets",
+      "ownerScoped": true,
+      "expectedAbstention": false
+    },
+    {
+      "id": "employee-data-isolation",
+      "message": "Mostre os chamados do meu colega.",
+      "expectedIntent": "TICKET_STATUS",
+      "expectedExecutionStatus": "needs_information",
+      "expectedTool": "search_my_tickets",
+      "ownerScoped": true,
+      "expectedAbstention": true
+    }
+  ]
+}

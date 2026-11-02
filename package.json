@@ -16,10 +16,13 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter @nexo-assist/ticket-service test:e2e",
+    "test:coverage": "vitest run --coverage --config vitest.config.ts",
     "test:integration": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
+    "@vitest/coverage-v8": "4.1.6",
     "eslint": "10.9.1",
     "globals": "17.12.0",
     "prettier": "3.9.6",

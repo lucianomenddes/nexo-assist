@@ -67,17 +67,17 @@ export class AuthorizationError extends Error {
   }
 }
 
-export function registerAuthentication(
+export async function registerAuthentication(
   server: import("fastify").FastifyInstance,
   options: {
     secret: string;
     issuer: string;
     audience: string;
   },
-): void {
+): Promise<void> {
   server.decorateRequest("authenticatedEmployee", null);
 
-  void server.register(fastifyJwt, {
+  await server.register(fastifyJwt, {
     secret: options.secret,
     sign: {
       algorithm: "HS256",

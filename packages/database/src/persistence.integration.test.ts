@@ -112,6 +112,48 @@ describe.sequential("PostgreSQL domain persistence", () => {
     expect(visibleConversation).toBeNull();
   });
 
+  it("isolates execution traces and audit spans by employee", async () => {
+    const traceId = randomUUID();
+    const execution = await withEmployeeScope(employeeA, (transaction) =>
+      transaction.agentExecution.create({
+        data: {
+          employeeId: employeeA,
+          conversationId: conversationA,
+          traceId,
+          intent: "KNOWLEDGE_QUERY",
+          status: ExecutionStatus.succeeded,
+          audits: {
+            create: {
+              eventType: "span.search_knowledge_base",
+              toolName: "search_knowledge_base",
+              status: AuditStatus.succeeded,
+            },
+          },
+        },
+        include: { audits: true },
+      }),
+    );
+
+    const ownTrace = await withEmployeeScope(employeeA, (transaction) =>
+      transaction.agentExecution.findUnique({
+        where: { employeeId_traceId: { employeeId: employeeA, traceId } },
+        include: { audits: true },
+      }),
+    );
+    const foreignTrace = await withEmployeeScope(employeeB, (transaction) =>
+      transaction.agentExecution.findUnique({
+        where: {
+          employeeId_traceId: { employeeId: employeeA, traceId },
+        },
+        include: { audits: true },
+      }),
+    );
+
+    expect(ownTrace?.id).toBe(execution.id);
+    expect(ownTrace?.audits).toHaveLength(1);
+    expect(foreignTrace).toBeNull();
+  });
+
   it("enforces tenant-consistent foreign keys for messages", async () => {
     await expect(
       withEmployeeScope(employeeB, (transaction) =>

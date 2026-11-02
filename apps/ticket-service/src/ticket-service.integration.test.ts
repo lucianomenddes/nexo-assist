@@ -166,6 +166,36 @@ describe.sequential("Ticket Service PostgreSQL integration", () => {
     expect(reopened.history[0]?.action).toBe("reopened");
   });
 
+  it("allows reopening exactly seven days after resolution", async () => {
+    const created = await service.createTicket(
+      employeeId,
+      {
+        title: "Acesso ao calendário corporativo",
+        description: "O acesso ao calendário foi encerrado por engano.",
+        type: "INC",
+        category: "Acesso",
+        priority: "Média",
+      },
+      randomUUID(),
+    );
+    await service.patchTicket(
+      employeeId,
+      created.id,
+      { expectedVersion: 1, status: "resolved" },
+      randomUUID(),
+    );
+    now = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const reopened = await service.reopenTicket(
+      employeeId,
+      created.id,
+      randomUUID(),
+    );
+
+    expect(reopened.statusCode).toBe("open");
+    expect(reopened.history[0]?.action).toBe("reopened");
+  });
+
   it("rejects reopening outside seven days and keeps history immutable", async () => {
     const created = await service.createTicket(
       employeeId,

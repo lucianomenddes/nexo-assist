@@ -3,7 +3,7 @@ import { buildServer } from "./server.js";
 import { TicketService } from "./ticket-service.js";
 
 describe("ticket service health endpoints", () => {
-  let server: ReturnType<typeof buildServer> | undefined;
+  let server: Awaited<ReturnType<typeof buildServer>> | undefined;
 
   afterEach(async () => {
     await server?.close();
@@ -11,7 +11,7 @@ describe("ticket service health endpoints", () => {
   });
 
   it("reports liveness without checking dependencies", async () => {
-    server = buildServer(async () => {
+    server = await buildServer(async () => {
       throw new Error("database should not be checked for liveness");
     });
 
@@ -28,7 +28,7 @@ describe("ticket service health endpoints", () => {
   });
 
   it("reports database failures as not ready", async () => {
-    server = buildServer(async () => {
+    server = await buildServer(async () => {
       throw new Error("database unavailable");
     });
 
@@ -45,7 +45,7 @@ describe("ticket service health endpoints", () => {
   });
 
   it("exposes the requested public health route", async () => {
-    server = buildServer(async () => {});
+    server = await buildServer(async () => {});
 
     const response = await server.inject({
       method: "GET",
@@ -60,7 +60,7 @@ describe("ticket service health endpoints", () => {
   });
 
   it("requires a verified token and ignores frontend employee identity", async () => {
-    server = buildServer(async () => {});
+    server = await buildServer(async () => {});
 
     const response = await server.inject({
       method: "GET",
@@ -90,7 +90,7 @@ describe("ticket service health endpoints", () => {
       }
     }
 
-    server = buildServer(async () => {}, {
+    server = await buildServer(async () => {}, {
       ticketService: new IdentityTicketService(),
       auth,
     });
@@ -113,7 +113,7 @@ describe("ticket service health endpoints", () => {
       issuer: "https://issuer.test",
       audience: "ticket-service-test",
     };
-    server = buildServer(async () => {}, { auth });
+    server = await buildServer(async () => {}, { auth });
     await server.ready();
     const token = server.jwt.sign({
       role: "employee",
@@ -141,7 +141,7 @@ describe("ticket service health endpoints", () => {
   });
 
   it("serves OpenAPI documentation without requiring an employee token", async () => {
-    server = buildServer(async () => {});
+    server = await buildServer(async () => {});
 
     const response = await server.inject({
       method: "GET",
@@ -151,6 +151,15 @@ describe("ticket service health endpoints", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       info: { title: "Nexo Assist Ticket Service" },
+    });
+    expect(response.json().paths).toMatchObject({
+      "/tickets/search": { get: expect.any(Object) },
+      "/tickets": { get: expect.any(Object), post: expect.any(Object) },
+      "/tickets/{id}": {
+        get: expect.any(Object),
+        patch: expect.any(Object),
+      },
+      "/tickets/{id}/reopen": { post: expect.any(Object) },
     });
   });
 });

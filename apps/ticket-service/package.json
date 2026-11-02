@@ -9,7 +9,8 @@
     "start": "node --env-file-if-exists=../../.env dist/server.js",
     "lint": "eslint --max-warnings 0 src",
     "check-types": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts --dir ."
+    "test": "vitest run --config ../../vitest.config.ts --dir .",
+    "test:e2e": "vitest run --config ../../vitest.config.ts --dir . src/ticket-service.e2e.test.ts"
   },
   "dependencies": {
     "@fastify/jwt": "9.1.0",

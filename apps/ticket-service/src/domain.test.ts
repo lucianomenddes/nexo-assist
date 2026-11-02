@@ -101,6 +101,33 @@ describe("ticket SLA", () => {
     );
   });
 
+  it("calculates medium and low SLAs from business hours across weekends", () => {
+    const friday = new Date("2026-10-30T15:00:00.000Z");
+    expect(calculateSlaDueAt(TicketPriority.medium, friday)).toEqual(
+      new Date("2026-11-04T15:00:00.000Z"),
+    );
+
+    const mondayStart = new Date("2026-11-02T09:00:00.000Z");
+    expect(calculateSlaDueAt(TicketPriority.low, mondayStart)).toEqual(
+      new Date("2026-11-06T17:00:00.000Z"),
+    );
+  });
+
+  it("starts business-hour SLAs at opening time after hours and on weekends", () => {
+    expect(
+      calculateSlaDueAt(
+        TicketPriority.high,
+        new Date("2026-10-31T12:00:00.000Z"),
+      ),
+    ).toEqual(new Date("2026-11-02T13:00:00.000Z"));
+    expect(
+      calculateSlaDueAt(
+        TicketPriority.medium,
+        new Date("2026-11-02T20:00:00.000Z"),
+      ),
+    ).toEqual(new Date("2026-11-05T17:00:00.000Z"));
+  });
+
   it("compares SLA deadline to the current time", () => {
     const dueAt = new Date("2026-10-30T12:00:00.000Z");
     expect(isSlaOverdue(dueAt, new Date("2026-10-30T12:00:01.000Z"))).toBe(
@@ -110,5 +137,11 @@ describe("ticket SLA", () => {
       false,
     );
     expect(isSlaOverdue(null, new Date())).toBe(false);
+  });
+
+  it("does not mark tickets overdue exactly at the deadline", () => {
+    const dueAt = new Date("2026-10-30T12:00:00.000Z");
+    expect(isSlaOverdue(dueAt, dueAt)).toBe(false);
+    expect(isSlaOverdue(dueAt, new Date(dueAt.getTime() + 1))).toBe(true);
   });
 });

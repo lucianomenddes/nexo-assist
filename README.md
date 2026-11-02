@@ -57,6 +57,8 @@ pnpm build                                # build dos apps e packages
 pnpm check-types                          # verificação TypeScript
 pnpm lint                                 # ESLint
 pnpm test                                 # Vitest
+pnpm test:e2e                             # fluxos HTTP E2E do Ticket Service
+pnpm test:coverage                        # suíte unitária com relatórios text/html/json-summary
 pnpm test:integration                     # testes reais; requer PostgreSQL e migrations
 pnpm format:check                         # verifica formatação Prettier
 ```
@@ -126,6 +128,9 @@ A recuperação RAG combina `PgVector`/pgvector com busca lexical, usando soment
 - Prettier usa configuração na raiz.
 - TypeScript herda configuração `strict`.
 - Vitest executa testes unitários e testes HTTP com `fastify.inject()`, sem abrir portas.
+- `pnpm test:e2e` verifica contratos HTTP do Ticket Service, autorização, identidade autenticada, escritas confirmadas, validação e idempotência.
+- `pnpm test:coverage` gera relatório V8 no terminal, `coverage/index.html` e `coverage/coverage-summary.json`; cobertura mede execução de código, não substitui asserts comportamentais.
+- `apps/nexo-assist-agent/evals/agent-behavior.json` contém casos de intenção, confirmação, propriedade de dados, handoff, escopo, evidência RAG e indisponibilidade. `agent-evaluation.test.ts` pontua resultados previstos de forma determinística, sem inferência do LLM.
 - `pnpm test:integration` usa PostgreSQL real para validar RLS, chaves estrangeiras compostas, idempotência e restrições de handoff. A URL de runtime de teste precisa usar o papel `nexo_app`, sem privilégios `SUPERUSER` ou `BYPASSRLS`.
 
 ## Arquitetura e requisitos
