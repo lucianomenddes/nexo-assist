@@ -26,7 +26,8 @@
 | `GET /api/v1/conversations/{conversationId}`                           | Estado/resumo da conversa                                | Dono ou analista autorizado                   |
 | `GET /api/v1/conversations/{conversationId}/messages`                  | Histórico paginado                                       | Dono ou analista atribuído/console autorizado |
 | `POST /api/v1/conversations/{conversationId}/messages`                 | Enviar mensagem ao assistente/analista                   | Dono; resposta automática pausada no handoff  |
-| `GET /api/v1/conversations/{conversationId}/executions`                | Ver ações e fontes                                       | Dono ou analista autorizado                   |
+| `GET /api/v1/conversations/{conversationId}/executions?limit=20`       | Listar execuções recentes (limite máximo 50)             | Funcionário dono                              |
+| `GET /api/v1/conversations/{conversationId}/executions/{traceId}`      | Ver eventos, fontes, uso e resultado redigidos           | Funcionário dono                              |
 | `POST /api/v1/conversations/{conversationId}/drafts/{draftId}/confirm` | Confirmar operação exibida                               | Dono; draft atual, válido e pendente          |
 
 `employeeId` não é aceito em rotas de funcionário. Identidade é retirada do contexto servidor.
@@ -85,6 +86,10 @@ data: {"messageId":"message-id","executionId":"execution-id"}
 Outros eventos: `message.started`, `agent.execution.completed`, `tool.started`, `tool.failed`, `ticket.draft.created`, `ticket.created`, `ticket.updated`, `handoff.requested`, `agent.paused`, `agent.resumed`. Eventos identificam estado real; nenhum `ticket.created` é emitido antes da persistência.
 
 Reconexão usa `Last-Event-ID` para retomar eventos persistidos ou consultar status da execução. `message.delta` é efêmero se o transporte cair; a resposta final persistida permanece recuperável.
+
+### Observabilidade de execução
+
+As rotas de execução retornam apenas os dados da conversa pertencente ao funcionário autenticado. Cada detalhe inclui intenção, estado, confiança, modelo, duração, uso de tokens e eventos operacionais com ferramenta, resultado, fontes e duração por span. Entradas/saídas são redigidas antes da persistência e novamente antes da resposta da API. Campos de raciocínio privado e traces crus do provedor não são expostos. A interface de consulta está em `/observability`; o JWT fica somente em memória no navegador.
 
 ### Rascunho e confirmação
 

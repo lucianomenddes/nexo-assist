@@ -119,6 +119,8 @@ No limite de 30 mensagens do funcionário, não aceitar nova mensagem na mesma c
 
 Persistir para cada execução: intenção estruturada, ferramenta/workflow escolhido, estado, referências de fonte, validações relevantes, resumo do resultado, motivo curto, nível de confiança operacional quando calibrado, duração, uso do modelo e `traceId`. Não persistir chain-of-thought. A interface distingue ação planejada, executada, falha e aguardando confirmação.
 
+Os motivos exibidos e persistidos como justificativas de execução são sínteses operacionais determinísticas (intenção, ferramenta, estado e evidências), nunca a justificativa textual produzida pelo classificador. Eventos e spans são redigidos para remover PII e segredos; a consulta autenticada é limitada ao funcionário proprietário da conversa.
+
 Até calibração com testes, confiança numérica do modelo não é probabilidade confiável. Handoff/clarificação devem decorrer de critérios observáveis: campos ambíguos, evidência RAG insuficiente, falha de ferramenta e classificação não validada.
 
 ## 9. Restrições de resposta

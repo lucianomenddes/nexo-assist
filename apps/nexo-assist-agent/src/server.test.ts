@@ -62,6 +62,33 @@ describe("agent health endpoints", () => {
     expect(response.json()).toMatchObject({ error: "UNAUTHORIZED" });
   });
 
+  it("requires authentication for both execution observation routes", async () => {
+    server = buildServer(async () => {}, {
+      auth: {
+        secret: "test-jwt-secret-with-at-least-32-characters",
+        issuer: "nexo-assist-test",
+        audience: "nexo-assist-test-api",
+      },
+      closeDependencies: false,
+    });
+
+    const conversationId = "00000000-0000-4000-8000-000000000001";
+    const traceId = "00000000-0000-4000-8000-000000000002";
+    const [listResponse, detailResponse] = await Promise.all([
+      server.inject({
+        method: "GET",
+        url: `/api/v1/conversations/${conversationId}/executions`,
+      }),
+      server.inject({
+        method: "GET",
+        url: `/api/v1/conversations/${conversationId}/executions/${traceId}`,
+      }),
+    ]);
+
+    expect(listResponse.statusCode).toBe(401);
+    expect(detailResponse.statusCode).toBe(401);
+  });
+
   it("allows CORS preflight only from the configured web origin", async () => {
     server = buildServer(async () => {});
 

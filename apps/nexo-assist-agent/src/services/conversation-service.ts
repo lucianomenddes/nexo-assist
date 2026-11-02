@@ -20,6 +20,13 @@ import {
   TicketServiceUnavailableError,
 } from "./ticket-service-client.js";
 import { HandoffService } from "./handoff-service.js";
+import {
+  observabilityError,
+  observabilityJson,
+  observabilitySummary,
+  recordExecutionAudit,
+  redactObservabilityText,
+} from "./agent-observability.js";
 
 const maximumEmployeeMessages = 30;
 
@@ -178,6 +185,121 @@ export class ConversationService {
     });
   }
 
+  async listExecutions(employeeId: string, conversationId: string, limit = 20) {
+    return withEmployeeScope(employeeId, async (transaction) => {
+      const conversation = await transaction.conversation.findUnique({
+        where: { id_employeeId: { id: conversationId, employeeId } },
+        select: { id: true },
+      });
+      if (!conversation) throw new ConversationNotFoundError();
+
+      const executions = await transaction.agentExecution.findMany({
+        where: { employeeId, conversationId },
+        orderBy: { startedAt: "desc" },
+        take: limit,
+        select: {
+          traceId: true,
+          intent: true,
+          status: true,
+          confidence: true,
+          reason: true,
+          model: true,
+          usage: true,
+          startedAt: true,
+          completedAt: true,
+          durationMs: true,
+          _count: { select: { audits: true } },
+        },
+      });
+      return executions.map((execution) => ({
+        traceId: execution.traceId,
+        intent: execution.intent,
+        status: execution.status,
+        confidence: execution.confidence,
+        reason: execution.reason
+          ? redactObservabilityText(execution.reason)
+          : null,
+        model: execution.model,
+        usage: execution.usage
+          ? (observabilityJson(execution.usage) ?? null)
+          : null,
+        startedAt: execution.startedAt,
+        completedAt: execution.completedAt,
+        durationMs: execution.durationMs,
+        eventCount: execution._count.audits,
+      }));
+    });
+  }
+
+  async getExecution(
+    employeeId: string,
+    conversationId: string,
+    traceId: string,
+  ) {
+    return withEmployeeScope(employeeId, async (transaction) => {
+      const execution = await transaction.agentExecution.findFirst({
+        where: { employeeId, conversationId, traceId },
+        select: {
+          traceId: true,
+          intent: true,
+          status: true,
+          confidence: true,
+          reason: true,
+          model: true,
+          usage: true,
+          startedAt: true,
+          completedAt: true,
+          durationMs: true,
+          audits: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              eventType: true,
+              toolName: true,
+              inputSummary: true,
+              outputSummary: true,
+              status: true,
+              sourceRefs: true,
+              spanId: true,
+              parentSpanId: true,
+              durationMs: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+      if (!execution) throw new ConversationNotFoundError();
+      return {
+        traceId: execution.traceId,
+        intent: execution.intent,
+        status: execution.status,
+        confidence: execution.confidence,
+        reason: execution.reason
+          ? redactObservabilityText(execution.reason)
+          : null,
+        model: execution.model,
+        usage: execution.usage
+          ? (observabilityJson(execution.usage) ?? null)
+          : null,
+        startedAt: execution.startedAt,
+        completedAt: execution.completedAt,
+        durationMs: execution.durationMs,
+        audits: execution.audits.map((audit) => ({
+          ...audit,
+          inputSummary: audit.inputSummary
+            ? observabilitySummary(audit.inputSummary, 1000)
+            : null,
+          outputSummary: audit.outputSummary
+            ? observabilitySummary(audit.outputSummary, 1000)
+            : null,
+          sourceRefs: audit.sourceRefs
+            ? (observabilityJson(audit.sourceRefs) ?? null)
+            : null,
+        })),
+      };
+    });
+  }
+
   async sendMessage(
     employeeId: string,
     conversationId: string,
@@ -223,6 +345,7 @@ export class ConversationService {
           "The conversation workflow did not complete successfully.",
         );
       }
+
       return workflowResult.result;
     } catch (error) {
       await this.markExecutionFailed(employeeId, traceId, error);
@@ -309,6 +432,7 @@ export class ConversationService {
     }
 
     const traceId = randomUUID();
+    const operationStartedAt = Date.now();
     const intent = intentByOperation[draftMessage.draft.operation];
     await this.startConfirmationExecution({
       employeeId,
@@ -362,6 +486,25 @@ export class ConversationService {
         draftMessage.draft.operation === "create" ||
         draftMessage.draft.operation === "update" ||
         draftMessage.draft.operation === "reopen";
+      if (draftMessage.draft.operation === "handoff") {
+        const handoff =
+          data !== null && typeof data === "object"
+            ? (data as Record<string, unknown>)
+            : null;
+        await recordExecutionAudit({
+          employeeId,
+          traceId,
+          eventType: "handoff_requested",
+          toolName: "request_human_handoff",
+          inputSummary: {
+            reason: draftMessage.draft.payload.reason,
+            operation: "confirmed_handoff",
+          },
+          outputSummary: { status: handoff?.status ?? "requested" },
+          status: AuditStatus.succeeded,
+          durationMs: Math.max(0, Date.now() - operationStartedAt),
+        });
+      }
       const ticketData =
         data !== null && typeof data === "object" ? data : undefined;
       const ticketIsOverdue =
@@ -391,6 +534,19 @@ export class ConversationService {
             ? `Chamado vencido: ${publicKey}`
             : `Chamado crítico: ${publicKey}`,
         });
+        await recordExecutionAudit({
+          employeeId,
+          traceId,
+          eventType: "handoff_requested",
+          toolName: "request_human_handoff",
+          inputSummary: {
+            reason: ticketIsOverdue ? "Ticket overdue" : "Critical ticket",
+            ticketReference: publicKey,
+          },
+          outputSummary: { status: ticketHandoff.status },
+          status: AuditStatus.succeeded,
+          durationMs: Math.max(0, Date.now() - operationStartedAt),
+        });
       }
 
       const confirmedResult = agentTurnResultSchema.parse({
@@ -411,6 +567,25 @@ export class ConversationService {
               : "A operação foi confirmada e executada pelo Ticket Service.",
         sources: [],
         data: ticketHandoff ? { ticket: data, handoff: ticketHandoff } : data,
+      });
+      await recordExecutionAudit({
+        employeeId,
+        traceId,
+        eventType: `span.confirmed_${draftMessage.draft.operation}`,
+        toolName: confirmedResult.selectedTool,
+        inputSummary: {
+          operation: draftMessage.draft.operation,
+          summary: draftMessage.draft.summary,
+          parameterNames: Object.keys(draftMessage.draft.payload),
+        },
+        outputSummary: {
+          executionStatus: confirmedResult.executionStatus,
+          operation: draftMessage.draft.operation,
+          ticket: summarizeTicketResult(data),
+          handoffRequested: ticketHandoff !== null,
+        },
+        status: AuditStatus.succeeded,
+        durationMs: Math.max(0, Date.now() - operationStartedAt),
       });
       await this.finishConfirmationExecution({
         employeeId,
@@ -574,6 +749,17 @@ export class ConversationService {
           data: {
             employeeId: input.employeeId,
             executionId: execution.id,
+            eventType: "message_received",
+            inputSummary: redactObservabilityText(input.content).slice(0, 4000),
+            status: AuditStatus.succeeded,
+            spanId: randomUUID(),
+            parentSpanId: input.traceId,
+          },
+        });
+        await transaction.agentAudit.create({
+          data: {
+            employeeId: input.employeeId,
+            executionId: execution.id,
             eventType: "agent_paused",
             status: AuditStatus.skipped,
             outputSummary: "Message stored; no agent response generated.",
@@ -594,13 +780,24 @@ export class ConversationService {
         return { pausedResult };
       }
 
-      await transaction.agentExecution.create({
+      const execution = await transaction.agentExecution.create({
         data: {
           employeeId: input.employeeId,
           conversationId: input.conversationId,
           traceId: input.traceId,
           intent: "pending",
           status: ExecutionStatus.running,
+        },
+      });
+      await transaction.agentAudit.create({
+        data: {
+          employeeId: input.employeeId,
+          executionId: execution.id,
+          eventType: "message_received",
+          inputSummary: redactObservabilityText(input.content).slice(0, 4000),
+          status: AuditStatus.succeeded,
+          spanId: randomUUID(),
+          parentSpanId: input.traceId,
         },
       });
       const recent = await transaction.message.findMany({
@@ -650,7 +847,11 @@ export class ConversationService {
           employeeId: input.employeeId,
           executionId: execution.id,
           eventType: "confirmation_received",
+          inputSummary: `operation=${input.intent}`,
+          outputSummary: "Confirmação explícita recebida do funcionário.",
           status: AuditStatus.started,
+          spanId: randomUUID(),
+          parentSpanId: input.traceId,
         },
       });
     });
@@ -702,6 +903,15 @@ export class ConversationService {
           }),
         },
       });
+      const record = await transaction.agentExecution.findUniqueOrThrow({
+        where: {
+          employeeId_traceId: {
+            employeeId: input.employeeId,
+            traceId: input.traceId,
+          },
+        },
+        select: { id: true, startedAt: true },
+      });
       const execution = await transaction.agentExecution.updateMany({
         where: {
           employeeId: input.employeeId,
@@ -711,30 +921,26 @@ export class ConversationService {
         data: {
           status: ExecutionStatus.succeeded,
           confidence: 1,
-          reason: input.result.reason,
+          reason: `Operação ${input.draft.operation} confirmada e executada.`,
+          durationMs: Math.max(0, Date.now() - record.startedAt.getTime()),
           completedAt: new Date(),
         },
       });
       if (execution.count !== 1) {
         throw new Error("Confirmation execution was not running.");
       }
-      const record = await transaction.agentExecution.findUniqueOrThrow({
-        where: {
-          employeeId_traceId: {
-            employeeId: input.employeeId,
-            traceId: input.traceId,
-          },
-        },
-        select: { id: true },
-      });
       await transaction.agentAudit.create({
         data: {
           employeeId: input.employeeId,
           executionId: record.id,
           eventType: "confirmed_operation_completed",
           toolName: input.result.selectedTool,
-          outputSummary: input.draft.operation,
+          inputSummary: `operation=${input.draft.operation}`,
+          outputSummary: "Operação confirmada e concluída.",
           status: AuditStatus.succeeded,
+          spanId: randomUUID(),
+          parentSpanId: input.traceId,
+          durationMs: Math.max(0, Date.now() - record.startedAt.getTime()),
         },
       });
     });
@@ -746,27 +952,35 @@ export class ConversationService {
     error: unknown,
   ): Promise<void> {
     await withEmployeeScope(employeeId, async (transaction) => {
+      const record = await transaction.agentExecution.findUnique({
+        where: { employeeId_traceId: { employeeId, traceId } },
+        select: { id: true, startedAt: true },
+      });
+      if (!record) return;
       const updated = await transaction.agentExecution.updateMany({
         where: {
           employeeId,
           traceId,
           status: ExecutionStatus.running,
         },
-        data: { status: ExecutionStatus.failed, completedAt: new Date() },
+        data: {
+          status: ExecutionStatus.failed,
+          durationMs: Math.max(0, Date.now() - record.startedAt.getTime()),
+          completedAt: new Date(),
+        },
       });
       if (updated.count === 0) return;
-      const record = await transaction.agentExecution.findUniqueOrThrow({
-        where: { employeeId_traceId: { employeeId, traceId } },
-        select: { id: true },
-      });
       await transaction.agentAudit.create({
         data: {
           employeeId,
           executionId: record.id,
           eventType: "workflow_failed",
           status: AuditStatus.failed,
-          outputSummary:
-            error instanceof Error ? error.name : "Unknown workflow failure",
+          outputSummary: observabilityError(error),
+          inputSummary: "Execução interrompida durante o processamento.",
+          spanId: randomUUID(),
+          parentSpanId: traceId,
+          durationMs: Math.max(0, Date.now() - record.startedAt.getTime()),
         },
       });
     });
@@ -779,3 +993,16 @@ const intentByOperation: Record<PendingDraft["operation"], string> = {
   reopen: "TICKET_REOPEN",
   handoff: "HUMAN_HANDOFF",
 };
+
+function summarizeTicketResult(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  return {
+    publicKey: record.publicKey,
+    status: record.status,
+    priority: record.priority,
+    priorityCode: record.priorityCode,
+    overdue: record.overdue,
+    version: record.version,
+  };
+}

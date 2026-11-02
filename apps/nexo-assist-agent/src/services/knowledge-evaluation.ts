@@ -118,7 +118,7 @@ export async function evaluateKnowledgeDataset(
     });
     const answerQuality = await scoreAnswerQuality({
       query: testCase.query,
-      answer,
+      answer: answer.answer,
       referenceAnswer: testCase.referenceAnswer,
       expectedFacts: testCase.expectedFacts,
       evidence: sources.map(({ source, title, content }) => ({

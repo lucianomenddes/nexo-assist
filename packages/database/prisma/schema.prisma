@@ -222,6 +222,7 @@ model AgentExecution {
   audits         AgentAudit[]
   startedAt      DateTime        @default(now()) @db.Timestamptz(3)
   completedAt    DateTime?       @db.Timestamptz(3)
+  durationMs     Int?
 
   @@unique([employeeId, traceId])
   @@unique([id, employeeId])
@@ -241,8 +242,12 @@ model AgentAudit {
   status        AuditStatus
   sourceRefs    Json?
   createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  spanId        String?
+  parentSpanId  String?
+  durationMs    Int?
 
   @@index([employeeId, executionId, createdAt])
+  @@unique([employeeId, executionId, spanId])
 }
 
 model Handoff {

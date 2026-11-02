@@ -61,6 +61,12 @@ const handoffParamsSchema = z.object({
 const handoffReasonSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
+const executionsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+const executionParamsSchema = routeParamsSchema.extend({
+  traceId: z.string().uuid(),
+});
 const analystMessageSchema = z.object({
   content: z.string().trim().min(1).max(10_000),
 });
@@ -408,6 +414,67 @@ export function buildServer(
       return conversationService.listMessages(
         getEmployeeId(request),
         conversationId,
+      );
+    },
+  );
+
+  server.get(
+    "/api/v1/conversations/:conversationId/executions",
+    {
+      schema: {
+        tags: ["Agent Observability"],
+        summary:
+          "List executions for the authenticated employee's conversation",
+        params: {
+          type: "object",
+          required: ["conversationId"],
+          properties: {
+            conversationId: { type: "string", format: "uuid" },
+          },
+        },
+        querystring: {
+          type: "object",
+          properties: { limit: { type: "integer", minimum: 1, maximum: 50 } },
+        },
+        response: { 200: errorSchema },
+      },
+    },
+    async (request) => {
+      const { conversationId } = routeParamsSchema.parse(request.params);
+      const { limit } = executionsQuerySchema.parse(request.query);
+      return conversationService.listExecutions(
+        getEmployeeId(request),
+        conversationId,
+        limit,
+      );
+    },
+  );
+
+  server.get(
+    "/api/v1/conversations/:conversationId/executions/:traceId",
+    {
+      schema: {
+        tags: ["Agent Observability"],
+        summary: "Get a redacted execution and its operational audit events",
+        params: {
+          type: "object",
+          required: ["conversationId", "traceId"],
+          properties: {
+            conversationId: { type: "string", format: "uuid" },
+            traceId: { type: "string", format: "uuid" },
+          },
+        },
+        response: { 200: errorSchema },
+      },
+    },
+    async (request) => {
+      const { conversationId, traceId } = executionParamsSchema.parse(
+        request.params,
+      );
+      return conversationService.getExecution(
+        getEmployeeId(request),
+        conversationId,
+        traceId,
       );
     },
   );

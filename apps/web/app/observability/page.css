@@ -1,0 +1,248 @@
+.observability-page {
+  --obs-border: #d7dce3;
+  --obs-muted: #657185;
+  min-height: 100vh;
+  padding: 40px clamp(20px, 5vw, 72px);
+  color: #172033;
+  background: #f5f7fa;
+}
+
+.observability-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.observability-header h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.observability-header p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--obs-muted);
+}
+
+.observability-header a {
+  color: #1748a0;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.observability-eyebrow {
+  color: #1748a0 !important;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+
+.observability-auth,
+.observability-panel {
+  border: 1px solid var(--obs-border);
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 8px 26px rgb(23 32 51 / 4%);
+}
+
+.observability-auth {
+  display: grid;
+  gap: 10px;
+  max-width: 760px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.observability-auth > div {
+  display: flex;
+  gap: 10px;
+}
+
+.observability-auth input {
+  flex: 1;
+  min-width: 0;
+}
+
+.observability-auth input,
+.observability-auth button {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--obs-border);
+  border-radius: 7px;
+  font: inherit;
+}
+
+.observability-auth button {
+  color: white;
+  background: #1748a0;
+  border-color: #1748a0;
+  cursor: pointer;
+}
+
+.observability-auth button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.observability-auth small,
+.observability-empty {
+  color: var(--obs-muted);
+}
+
+.observability-grid {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(270px, 1fr) minmax(
+      360px,
+      1.7fr
+    );
+  align-items: start;
+  gap: 16px;
+}
+
+.observability-panel {
+  min-width: 0;
+  padding: 16px;
+}
+
+.observability-panel h2 {
+  margin: 0 0 14px;
+  font-size: 17px;
+}
+
+.observability-list {
+  display: grid;
+  gap: 8px;
+  max-height: 65vh;
+  padding: 0;
+  margin: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.observability-list button {
+  display: grid;
+  width: 100%;
+  gap: 5px;
+  padding: 11px;
+  text-align: left;
+  color: inherit;
+  background: white;
+  border: 1px solid var(--obs-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.observability-list button.is-selected {
+  border-color: #1748a0;
+  box-shadow: 0 0 0 2px rgb(23 72 160 / 12%);
+}
+
+.observability-list button span,
+.observability-list button small {
+  color: var(--obs-muted);
+  overflow-wrap: anywhere;
+}
+
+.observability-detail {
+  max-height: 78vh;
+  overflow: auto;
+}
+
+.execution-metadata {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--obs-border);
+}
+
+.execution-metadata div {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.execution-metadata dt {
+  color: var(--obs-muted);
+  font-weight: 650;
+}
+
+.execution-metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.audit-timeline {
+  display: grid;
+  gap: 12px;
+  padding-left: 22px;
+}
+
+.audit-timeline li {
+  padding: 12px;
+  border: 1px solid var(--obs-border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.audit-timeline li p {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+}
+
+.audit-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.audit-heading span,
+.audit-timeline small {
+  color: var(--obs-muted);
+}
+
+.observability-error {
+  padding: 12px;
+  color: #8d1d1d;
+  background: #fff0f0;
+  border: 1px solid #e8bcbc;
+  border-radius: 8px;
+}
+
+@media (max-width: 1000px) {
+  .observability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .observability-detail {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .observability-page {
+    padding: 24px 16px;
+  }
+
+  .observability-header {
+    flex-direction: column;
+  }
+
+  .observability-auth > div {
+    flex-direction: column;
+  }
+
+  .observability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .observability-detail {
+    grid-column: auto;
+  }
+
+  .execution-metadata div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

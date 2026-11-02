@@ -22,6 +22,7 @@
     "@ai-sdk/openai": "^4.0.106",
     "@mastra/core": "1.80.0",
     "@mastra/memory": "^1.39.1",
+    "@mastra/observability": "1.23.0",
     "@mastra/pg": "1.34.0",
     "@mastra/rag": "^2.7.1",
     "@nexo-assist/config": "workspace:*",

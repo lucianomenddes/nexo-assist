@@ -39,7 +39,6 @@ export const ticketFieldsSchema = z.object({
 export const intentDecisionSchema = z.object({
   intent: intentSchema,
   confidence: z.number().min(0).max(1),
-  reason: z.string().trim().min(1).max(500),
   ticketFields: ticketFieldsSchema.optional(),
   ticketReference: z.string().trim().min(2).max(100).optional(),
   searchQuery: z.string().trim().min(2).max(200).optional(),
