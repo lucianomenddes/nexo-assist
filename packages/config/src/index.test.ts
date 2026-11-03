@@ -22,6 +22,16 @@ describe("loadEnvironment", () => {
     expect(environment.GROQ_MODEL).toBe("groq/openai/gpt-oss-120b");
   });
 
+  it("treats empty optional provider keys as unset", () => {
+    const environment = loadEnvironment({
+      GROQ_API_KEY: "",
+      OPENAI_API_KEY: "",
+    });
+
+    expect(environment.GROQ_API_KEY).toBeUndefined();
+    expect(environment.OPENAI_API_KEY).toBeUndefined();
+  });
+
   it("rejects invalid port values with a useful message", () => {
     expect(() => loadEnvironment({ AGENT_PORT: "70000" })).toThrow(
       "AGENT_PORT",

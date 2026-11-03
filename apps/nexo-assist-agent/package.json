@@ -38,6 +38,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "26.4.1",
+    "mastra": "^1.37.0",
     "tsx": "4.20.6",
     "typescript": "7.0.2",
     "vitest": "4.1.6"

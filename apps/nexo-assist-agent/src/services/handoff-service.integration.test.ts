@@ -78,6 +78,26 @@ describe.sequential("analyst handoff concurrency", () => {
     });
   });
 
+  it("returns queue and detail with employee data through the conversation relation", async () => {
+    const queue = await handoffService.listQueue(firstAnalystId);
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({
+      id: handoffId,
+      employee: {
+        name: "Handoff integration employee",
+        email: `${employeeId}@example.test`,
+      },
+    });
+    expect(queue[0]?.conversation).toHaveProperty("status", "waiting_analyst");
+
+    const details = await handoffService.getHandoff(firstAnalystId, handoffId);
+    expect(details.employee).toMatchObject({
+      name: "Handoff integration employee",
+      email: `${employeeId}@example.test`,
+    });
+    expect(details.conversation).not.toHaveProperty("employee");
+  });
+
   it("allows only one analyst to claim the same waiting handoff", async () => {
     const outcomes = await Promise.allSettled([
       handoffService.assign(

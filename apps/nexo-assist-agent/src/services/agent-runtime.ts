@@ -13,7 +13,10 @@ import {
 } from "../mastra/domain.js";
 import { systemInstructions } from "../mastra/system-instructions.js";
 import { composeGroundedKnowledgeAnswer } from "./knowledge-answer.js";
-import { searchKnowledgeBase } from "./knowledge-rag.js";
+import {
+  maximumKnowledgeQueryLength,
+  searchKnowledgeBase,
+} from "./knowledge-rag.js";
 import {
   TicketServiceClient,
   type OwnedTicket,
@@ -311,11 +314,28 @@ export async function routeIntent(
         platform: decision.platform,
         version: decision.knowledgeVersion,
       };
+      const knowledgeQuery = (decision.searchQuery ?? input.content).slice(
+        0,
+        maximumKnowledgeQueryLength,
+      );
+      if (knowledgeQuery.trim().length < 2) {
+        return {
+          intent: decision.intent,
+          selectedTool: "search_knowledge_base",
+          executionStatus: "needs_information",
+          confidence: decision.confidence,
+          reason:
+            "A consulta é curta demais para buscar na base de conhecimento.",
+          answerPlan:
+            "Peça que a pessoa descreva a dúvida com um pouco mais de contexto antes de consultar a central de ajuda.",
+          sources: [],
+        };
+      }
       const sources = await observeOperation(
         input,
         "search_knowledge_base",
-        { query: input.content, filters },
-        () => searchKnowledge(input.content, filters),
+        { query: knowledgeQuery, filters },
+        () => searchKnowledge(knowledgeQuery, filters),
         (matches) => ({
           count: matches.length,
           sources: matches.map(({ title, source, score }) => ({

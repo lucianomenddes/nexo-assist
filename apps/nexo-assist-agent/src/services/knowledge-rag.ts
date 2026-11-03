@@ -14,6 +14,7 @@ const indexName = "nexo_knowledge_chunks";
 const embeddingDimension = 1536;
 const candidateCount = 40;
 const rankConstant = 60;
+export const maximumKnowledgeQueryLength = 2000;
 
 function canonicalPlatform(platform: string): string {
   return platform.trim().toLocaleLowerCase("pt-BR");
@@ -280,7 +281,12 @@ export async function searchKnowledgeBase(
   requestedFilters: KnowledgeSearchFilters = {},
   limit = 5,
 ): Promise<KnowledgeSource[]> {
-  const normalizedQuery = z.string().trim().min(2).max(2000).parse(query);
+  const normalizedQuery = z
+    .string()
+    .trim()
+    .min(2)
+    .max(maximumKnowledgeQueryLength)
+    .parse(query);
   const filters = parseKnowledgeSearchFilters(requestedFilters);
   const topK = z.number().int().min(1).max(20).parse(limit);
   const embeddings = await createKnowledgeEmbeddings([normalizedQuery]);

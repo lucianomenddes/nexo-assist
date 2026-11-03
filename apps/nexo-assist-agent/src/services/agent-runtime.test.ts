@@ -263,6 +263,42 @@ describe("deterministic agent intent routing", () => {
     );
   });
 
+  it("uses the extracted search query and bounds the fallback message", async () => {
+    const searchKnowledge = vi.fn(
+      async (_query: string) => [] as KnowledgeSource[],
+    );
+    await routeIntent(
+      input,
+      decision({
+        intent: "KNOWLEDGE_QUERY",
+        searchQuery: "VPN error 809",
+      }),
+      { searchKnowledge, listTickets: vi.fn() },
+    );
+    expect(searchKnowledge.mock.calls.at(-1)?.[0]).toBe("VPN error 809");
+
+    const longMessage = { ...input, content: "x".repeat(10_000) };
+    await routeIntent(longMessage, decision({ intent: "KNOWLEDGE_QUERY" }), {
+      searchKnowledge,
+      listTickets: vi.fn(),
+    });
+    expect(searchKnowledge.mock.calls.at(-1)?.[0]).toHaveLength(2000);
+  });
+
+  it("asks for clarification instead of searching with a one-character query", async () => {
+    const searchKnowledge = vi.fn(
+      async (_query: string) => [] as KnowledgeSource[],
+    );
+    const result = await routeIntent(
+      { ...input, content: "x" },
+      decision({ intent: "KNOWLEDGE_QUERY" }),
+      { searchKnowledge, listTickets: vi.fn() },
+    );
+
+    expect(result.executionStatus).toBe("needs_information");
+    expect(searchKnowledge).not.toHaveBeenCalled();
+  });
+
   it("returns grounded knowledge sources when platform-compatible evidence exists", async () => {
     const source: KnowledgeSource = {
       documentId: randomUUID(),

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const optionalApiKeySchema = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(1).optional(),
+);
+
 export const environmentSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -11,9 +16,9 @@ export const environmentSchema = z.object({
       "postgresql://nexo_app:nexo_app_dev@localhost:55432/nexo_assist?schema=public",
     ),
   DIRECT_URL: z.string().url().optional(),
-  GROQ_API_KEY: z.string().min(1).optional(),
+  GROQ_API_KEY: optionalApiKeySchema,
   GROQ_MODEL: z.string().min(1).default("groq/openai/gpt-oss-20b"),
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_API_KEY: optionalApiKeySchema,
   TICKET_SERVICE_URL: z.string().url().default("http://localhost:4112"),
   WEB_ORIGIN: z
     .string()

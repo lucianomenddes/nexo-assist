@@ -183,8 +183,8 @@ export class HandoffService {
   }
 
   async listQueue(analystId: string) {
-    return withAnalystScope(analystId, (transaction) =>
-      transaction.handoff.findMany({
+    return withAnalystScope(analystId, async (transaction) => {
+      const handoffs = await transaction.handoff.findMany({
         where: {
           status: { in: activeHandoffStatuses },
         },
@@ -201,14 +201,25 @@ export class HandoffService {
           assignedAt: true,
           assignedAnalystId: true,
           conversation: {
-            select: { status: true, updatedAt: true },
-          },
-          employee: {
-            select: { name: true, email: true, department: true },
+            select: {
+              status: true,
+              updatedAt: true,
+              employee: {
+                select: { name: true, email: true, department: true },
+              },
+            },
           },
         },
-      }),
-    );
+      });
+      return handoffs.map(({ conversation, ...handoff }) => ({
+        ...handoff,
+        conversation: {
+          status: conversation.status,
+          updatedAt: conversation.updatedAt,
+        },
+        employee: conversation.employee,
+      }));
+    });
   }
 
   async getHandoff(analystId: string, handoffId: string) {
@@ -216,12 +227,14 @@ export class HandoffService {
       const handoff = await transaction.handoff.findUnique({
         where: { id: handoffId },
         include: {
-          employee: { select: { name: true, email: true, department: true } },
           conversation: {
             select: {
               id: true,
               status: true,
               agentStatus: true,
+              employee: {
+                select: { name: true, email: true, department: true },
+              },
               messages: {
                 orderBy: { sequence: "asc" },
                 take: 200,
@@ -240,7 +253,8 @@ export class HandoffService {
         },
       });
       if (!handoff) throw new HandoffNotFoundError();
-      return handoff;
+      const { employee, ...conversation } = handoff.conversation;
+      return { ...handoff, employee, conversation };
     });
   }
 
