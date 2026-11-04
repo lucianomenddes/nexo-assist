@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildServer } from "./server.js";
-import { TicketService } from "./ticket-service.js";
+import { buildServer } from "../../app.js";
+import { TicketService } from "./tickets.service.js";
 
 describe("ticket service health endpoints", () => {
   let server: Awaited<ReturnType<typeof buildServer>> | undefined;

@@ -1,5 +1,11 @@
 import fastifyJwt from "@fastify/jwt";
 import { z } from "zod";
+import {
+  AuthenticationError,
+  AuthorizationError,
+} from "../shared/errors/authentication-errors.js";
+
+export { AuthenticationError, AuthorizationError };
 
 const claimsSchema = z
   .object({
@@ -29,43 +35,6 @@ export type AuthenticatedEmployee = {
   employeeId: string;
   actorRole: "employee" | "service";
 };
-
-declare module "fastify" {
-  interface FastifyRequest {
-    authenticatedEmployee: AuthenticatedEmployee | null;
-  }
-
-  interface FastifyJWT {
-    payload: {
-      role: "employee" | "service";
-      employeeId?: string;
-      sub?: string;
-    };
-    user: {
-      sub?: string;
-      role: "employee" | "service";
-      employeeId?: string;
-    };
-  }
-}
-
-export class AuthenticationError extends Error {
-  readonly statusCode = 401;
-
-  constructor() {
-    super("A valid employee authentication token is required.");
-    this.name = "AuthenticationError";
-  }
-}
-
-export class AuthorizationError extends Error {
-  readonly statusCode = 403;
-
-  constructor() {
-    super("A trusted service token is required for ticket writes.");
-    this.name = "AuthorizationError";
-  }
-}
 
 export async function registerAuthentication(
   server: import("fastify").FastifyInstance,

@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma, withEmployeeScope } from "@nexo-assist/database";
-import { ReopenWindowExpiredError, TicketNotFoundError } from "./errors.js";
-import { TicketService } from "./ticket-service.js";
+import {
+  ReopenWindowExpiredError,
+  TicketNotFoundError,
+} from "../../shared/errors/ticket-errors.js";
+import { TicketService } from "./tickets.service.js";
 
 const employeeId = randomUUID();
 const otherEmployeeId = randomUUID();

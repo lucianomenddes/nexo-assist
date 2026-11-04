@@ -95,6 +95,14 @@ O serviço Fastify oferece `GET /employees/me`, `GET /tickets`, `GET /tickets/se
 `POST /tickets/:id/reopen`. A especificação OpenAPI e a interface Swagger ficam
 disponíveis em `http://localhost:4112/docs`.
 
+O código do serviço segue um recorte por feature em `apps/ticket-service/src`:
+`app.ts` compõe a instância Fastify, `server.ts` cuida do listen e cada domínio
+fica em `modules/<feature>` com rotas, controller, service, repository e schema.
+Autenticação, health checks e tratamento global de erros ficam em `plugins`;
+configuração de ambiente reutiliza a validação Zod de `@nexo-assist/config`.
+O módulo de tickets executa operações sob o escopo transacional fornecido por
+`@nexo-assist/database`, preservando as políticas RLS compartilhadas.
+
 As rotas de negócio exigem um JWT assinado com HS256 e validado por issuer e
 audience configurados em `AUTH_JWT_ISSUER` e `AUTH_JWT_AUDIENCE`. Um token de
 funcionário usa o UUID do registro de funcionário em `sub` e `role: "employee"`.

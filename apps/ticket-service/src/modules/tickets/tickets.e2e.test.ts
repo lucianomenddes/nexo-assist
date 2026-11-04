@@ -8,8 +8,8 @@ import {
   vi,
 } from "vitest";
 import { TicketPriority, TicketStatus } from "@prisma/client";
-import { buildServer } from "./server.js";
-import { TicketService } from "./ticket-service.js";
+import { buildServer } from "../../app.js";
+import { TicketService } from "./tickets.service.js";
 
 const employeeId = "00000000-0000-4000-8000-000000000001";
 const otherEmployeeId = "00000000-0000-4000-8000-000000000002";

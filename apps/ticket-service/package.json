@@ -10,7 +10,7 @@
     "lint": "eslint --max-warnings 0 src",
     "check-types": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run --config ../../vitest.config.ts --dir .",
-    "test:e2e": "vitest run --config ../../vitest.config.ts --dir . src/ticket-service.e2e.test.ts"
+    "test:e2e": "vitest run --config ../../vitest.config.ts --dir . src/modules/tickets/tickets.e2e.test.ts"
   },
   "dependencies": {
     "@fastify/jwt": "9.1.0",

@@ -3,9 +3,9 @@ import {
   createTicketSchema,
   patchTicketSchema,
   ticketCategories,
-} from "./domain.js";
-import { isDuplicateTicket } from "./ticket-service.js";
-import { calculateSlaDueAt, isSlaOverdue } from "./sla.js";
+} from "./tickets.schema.js";
+import { isDuplicateTicket } from "./tickets.service.js";
+import { calculateSlaDueAt, isSlaOverdue } from "../../shared/utils/sla.js";
 import { TicketPriority } from "@prisma/client";
 
 describe("ticket domain validation", () => {
