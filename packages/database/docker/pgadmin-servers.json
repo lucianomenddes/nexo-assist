@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Nexo Assist PostgreSQL",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "nexo_assist",
+      "Username": "nexo_assist",
+      "SSLMode": "prefer"
+    }
+  }
+}

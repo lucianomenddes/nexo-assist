@@ -21,16 +21,20 @@ pnpm dev
 
 O comando `pnpm dev` inicia os três apps em modo de desenvolvimento via Turborepo:
 
-| Serviço             | URL                   | Health                                                         |
-| ------------------- | --------------------- | -------------------------------------------------------------- |
-| Next.js web         | http://localhost:3000 | `/api/health`                                                  |
-| Mastra agent API    | http://localhost:4111 | `/health/live`, `/health/ready`                                |
-| Ticket Service      | http://localhost:4112 | `/health`, `/health/live`, `/health/ready`; Swagger em `/docs` |
-| PostgreSQL/pgvector | localhost:55432       | Docker health check                                            |
+| Serviço             | URL                   | Health                                                                     |
+| ------------------- | --------------------- | -------------------------------------------------------------------------- |
+| Next.js web         | http://localhost:3000 | `/api/health`                                                              |
+| Mastra agent API    | http://localhost:4111 | `/health/live`, `/health/ready`                                            |
+| Mastra Studio       | http://localhost:4113 | Playground do agente                                                       |
+| Ticket Service      | http://localhost:4112 | `/health`, `/health/live`, `/health/ready`; Swagger em `/docs`             |
+| PostgreSQL/pgvector | localhost:55432       | Docker health check                                                        |
+| pgAdmin             | http://localhost:5050 | Credenciais locais de `PGADMIN_DEFAULT_EMAIL` e `PGADMIN_DEFAULT_PASSWORD` |
 
 O readiness dos serviços Fastify verifica a conexão real com PostgreSQL. A chave OpenAI é opcional para inicializar os serviços, mas necessária para classificar mensagens, recuperar semanticamente a base e compor respostas.
 
 `DATABASE_URL` usa o papel de runtime sem superusuário; `DIRECT_URL` é reservado às migrations. As migrations ativam RLS nas tabelas de domínio e criam o schema `mastra_storage` separado do schema `public` gerenciado pelo Prisma. `NEXO_APP_PASSWORD` provisiona o papel local do Compose; em produção, configure credenciais distintas em um secret manager e use uma conexão privilegiada separada para migrations. As credenciais do `.env.example` são somente para desenvolvimento local.
+
+Para visualizar os dados, abra o pgAdmin e expanda o servidor **Nexo Assist PostgreSQL**, já configurado para o host `postgres` na rede interna do Docker Compose. Ao conectar pela primeira vez, informe a senha de `POSTGRES_PASSWORD` (pgAdmin não importa nem armazena senhas em definições de servidor). O servidor aparece automaticamente em instalações novas; o painel fica acessível somente pela máquina local e `PGADMIN_PORT` altera a porta publicada.
 
 Para encerrar os processos, use `Ctrl+C`; para parar o banco sem apagar os dados:
 
@@ -38,18 +42,19 @@ Para encerrar os processos, use `Ctrl+C`; para parar o banco sem apagar os dados
 pnpm db:down
 ```
 
-O volume `postgres_data` é persistente. O script `packages/database/docker/init.sql` habilita a extensão pgvector no primeiro provisionamento do volume; as migrations Prisma também garantem a extensão.
+Os volumes `postgres_data` e `pgadmin_data` são persistentes. O script `packages/database/docker/init.sql` habilita a extensão pgvector no primeiro provisionamento do volume; as migrations Prisma também garantem a extensão.
 
 ## Comandos úteis
 
 ```bash
-pnpm dev                                  # inicia todos os apps do workspace
+pnpm dev                                  # inicia apps, Mastra Studio e API com Swagger
 pnpm exec turbo run dev --filter=web
 pnpm exec turbo run dev --filter=nexo-assist-agent
+pnpm studio:agent                         # inicia apenas o Mastra Studio
 pnpm exec turbo run dev --filter=@nexo-assist/ticket-service
 pnpm --filter nexo-assist-agent rag:ingest -- ./evals/fixtures/vpn-error-809.json
 pnpm --filter nexo-assist-agent rag:evaluate
-pnpm db:up                                # inicia PostgreSQL
+pnpm db:up                                # inicia PostgreSQL e pgAdmin
 pnpm db:migrate                           # aplica migrations em desenvolvimento
 pnpm db:seed                              # insere exemplos idempotentes
 pnpm db:generate                          # gera Prisma Client

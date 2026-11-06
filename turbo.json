@@ -35,6 +35,11 @@
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
+    },
+    "//#studio:agent": {
+      "dependsOn": ["nexo-assist-agent#build"],
+      "cache": false,
+      "persistent": true
     }
   }
 }
